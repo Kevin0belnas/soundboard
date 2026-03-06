@@ -283,6 +283,17 @@ function App() {
           }
         />
 
+        <Route
+          path="/admin/voice-soundboard"
+          element={
+            <ProtectedRoute allowedRole="admin">
+              <AdminDashboard onLogout={handleLogout} initialView="voice-soundboard" />
+            </ProtectedRoute>
+          }
+        />
+
+        
+
         {/* Agent Routes - commented for now */}
         {/*
         <Route

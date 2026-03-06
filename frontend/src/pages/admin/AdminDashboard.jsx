@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ScriptList from "./ScriptList";
 import LogList from "./LogList";
-import ScriptForm from "./ScriptForm"; 
+import ScriptForm from "./ScriptForm";
+import VoiceSoundboard from "./VoiceSoundBoard";
 import AgentsList from "./AgentsList";
 import AddAgent from "./AddAgent"; 
 import { 
@@ -15,7 +16,8 @@ import {
   FiChevronRight,
   FiSearch,
   FiRefreshCw,
-  FiPlusCircle,
+  FiVolume2,
+  FiPlusCircle, 
   FiUserPlus
 } from "react-icons/fi";
 
@@ -25,9 +27,11 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
     if (path.includes("/admin/scripts")) return "scripts";
     if (path.includes("/admin/addagents")) return "addagents";
     if (path.includes("/admin/logs")) return "logs";
-   
+    if (path.includes("/admin/voice-soundboard")) return "voice-soundboard";
+    
     return initialView;
   });
+
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -35,7 +39,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Modal states
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [showAddAgentModal, setShowAddAgentModal] = useState(false); // Add this
   const [editingScript, setEditingScript] = useState(null);
@@ -75,7 +78,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
   };
 
   const handleScriptSaved = () => {
-    setRefreshKey(prev => prev + 1);
+    setRefreshKey((prev) => prev + 1);
   };
 
   // Agent modal handlers - exactly like script form
@@ -102,11 +105,25 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
     { id: "scripts", label: "Scripts", icon: FiBook },
     { id: "addagents", label: "Add Agents", icon: FiPlusCircle },
     { id: "logs", label: "Logs", icon: FiClock },
+    { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
   ];
 
+  const pageTitle =
+    view === "scripts"
+      ? "Script Management"
+      : view === "logs"
+      ? "Activity Logs"
+      : "Voice Soundboard";
+
+  const pageSubtitle =
+    view === "scripts"
+      ? "Create, edit, and manage your automation scripts"
+      : view === "logs"
+      ? "Monitor and analyze system activity"
+      : "Click a script and let ElevenLabs speak it";
+
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 flex">
-      {/* Mobile Menu Overlay */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex">
       {isMobileMenuOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -114,7 +131,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
         />
       )}
 
-      {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-20
         bg-linear-to-b from-gray-900 via-gray-800 to-gray-900 text-white
@@ -123,7 +139,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         shadow-2xl
       `}>
-        {/* Sidebar Header */}
         <div className="h-20 flex items-center justify-between px-4 border-b border-gray-700/50">
           <div className="flex items-center space-x-3 overflow-hidden">
             {!sidebarCollapsed && (
@@ -150,7 +165,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
           </button>
         </div>
 
-        {/* User Profile */}
         <div className="p-4 border-b border-gray-700/50">
           <div className="flex items-center space-x-4">
             <div className="relative">
@@ -171,7 +185,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
           </div>
         </div>
 
-        {/* Navigation Menu */}
         <nav className="p-4 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -212,7 +225,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
           })}
         </nav>
 
-        {/* Footer */}
         {!sidebarCollapsed && (
           <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700/50">
             <div className="text-xs text-gray-400">
@@ -223,13 +235,10 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
         )}
       </aside>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen">
-        {/* Top Navigation */}
         <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-10">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-20">
-              {/* Left Section */}
               <div className="flex items-center space-x-4">
                 <button
                   onClick={() => setIsMobileMenuOpen(true)}
@@ -240,32 +249,29 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
                 </button>
 
                 <div>
-                  <h1 className="text-2xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                    {view === "scripts" ? "Script Management" : view === "addagents" ? "Agent Management" : "Activity Logs"}
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                    {pageTitle}
                   </h1>
                   <p className="text-sm text-gray-500">
-                    {view === "scripts" 
-                      ? "Create, edit, and manage your automation scripts" 
-                      : view === "addagents"
-                      ? "Manage your agents and their roles"
-                      : "Monitor and analyze system activity"}
+                    {pageSubtitle}
                   </p>
                 </div>
               </div>
 
-              {/* Right Section */}
               <div className="flex items-center space-x-3">
-                <div className="hidden md:flex items-center bg-gray-100 rounded-lg px-3 py-2">
-                  <FiSearch className="w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder={`Search ${view}...`}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="ml-2 bg-transparent border-none focus:outline-none text-sm w-48"
-                    aria-label={`Search ${view}`}
-                  />
-                </div>
+                {view !== "voice-soundboard" && (
+                  <div className="hidden md:flex items-center bg-gray-100 rounded-lg px-3 py-2">
+                    <FiSearch className="w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder={`Search ${view}...`}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="ml-2 bg-transparent border-none focus:outline-none text-sm w-48"
+                      aria-label={`Search ${view}`}
+                    />
+                  </div>
+                )}
 
                 <button
                   onClick={handleRefresh}
@@ -300,12 +306,8 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
           </div>
         </header>
 
-        {/* Main Content Area */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          
-          {/* Action Bar */}
           <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
-            {/* Action buttons based on view */}
             {view === "scripts" && (
               <button
                 onClick={() => handleOpenScriptForm()}
@@ -315,6 +317,19 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
               </button>
             )}
             
+            {view !== "voice-soundboard" && (
+              <div className="md:hidden flex items-center bg-white rounded-lg px-3 py-2 border border-gray-200 w-full sm:w-auto">
+                <FiSearch className="w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder={`Search ${view}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="ml-2 bg-transparent border-none focus:outline-none text-sm flex-1"
+                  aria-label={`Search ${view}`}
+                />
+              </div>
+            )}
             {view === "addagents" && (
               <button
                 onClick={() => handleOpenAgentForm()} // Direct call like ScriptForm
@@ -341,16 +356,18 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
             )}
           </div>
 
-          {/* Content Card */}
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
             {view === "scripts" && (
-              <ScriptList 
+              <ScriptList
                 key={refreshKey}
-                searchQuery={searchQuery} 
+                searchQuery={searchQuery}
                 onEditScript={handleOpenScriptForm}
               />
             )}
+
             {view === "logs" && <LogList searchQuery={searchQuery} />}
+
+            {view === "voice-soundboard" && <VoiceSoundboard />}
             {view === "addagents" && (
               <AgentsList 
                 key={agentsRefreshKey}
@@ -362,7 +379,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
         </main>
       </div>
 
-      {/* Global Modals - Rendered at root level */}
       {showScriptModal && (
         <ScriptForm
           script={editingScript}
