@@ -28,10 +28,12 @@ router.get("/", authenticateToken, async (req, res) => {
   try {
     const logs = await Log.find()
       .populate("user", "name email")
-      .populate("script", "name type")
-      .sort({ playedAt: -1 }); // Most recent first
+      .sort({ timestamp: -1 });
+    
+    // Keep all original fields - don't transform or remove anything
     res.json(logs);
   } catch (error) {
+    console.error("Error fetching logs:", error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { FiClock, FiUser, FiPlay, FiFilter, FiSearch, FiRefreshCw } from "react-icons/fi";
+import { FiClock, FiUser, FiCode, FiSearch, FiRefreshCw, FiAlertCircle, FiCheckCircle, FiXCircle } from "react-icons/fi";
 
-export default function LogList() {
+export default function LogList({ searchQuery: externalSearchQuery = "" }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("all");
+  const [filterAction, setFilterAction] = useState("all");
 
   const fetchLogs = async () => {
     try {
@@ -41,6 +41,7 @@ export default function LogList() {
       }
 
       const data = await res.json();
+      console.log("Fetched logs:", data);
       setLogs(Array.isArray(data) ? data : []);
       setError("");
     } catch (err) {
@@ -55,19 +56,86 @@ export default function LogList() {
     fetchLogs();
   }, []);
 
-  // Filter logs based on search and type
+  // Handle external search from dashboard
+  useEffect(() => {
+    if (externalSearchQuery !== undefined) {
+      setSearchTerm(externalSearchQuery);
+    }
+  }, [externalSearchQuery]);
+
+  // Get unique actions for filter
+  const actions = ["all", ...new Set(logs.map(log => log.action).filter(Boolean))];
+
+  // Filter logs based on search and action type
   const filteredLogs = logs.filter(log => {
-    const matchesSearch = 
-      (log.user?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (log.script?.name || "").toLowerCase().includes(searchTerm.toLowerCase());
+    const searchLower = searchTerm.toLowerCase();
     
-    if (filterType === "all") return matchesSearch;
-    // Add more filter logic here if you have different log types
-    return matchesSearch;
+    // Search in user name/email, action, and details
+    const matchesSearch = 
+      (log.user?.name || "").toLowerCase().includes(searchLower) ||
+      (log.user?.email || "").toLowerCase().includes(searchLower) ||
+      (log.action || "").toLowerCase().includes(searchLower) ||
+      (log.details?.message || "").toLowerCase().includes(searchLower) ||
+      (log.details?.title || "").toLowerCase().includes(searchLower) ||
+      (log.details?.email || "").toLowerCase().includes(searchLower);
+    
+    const matchesAction = filterAction === "all" || log.action === filterAction;
+    
+    return matchesSearch && matchesAction;
   });
 
   const handleRefresh = () => {
     fetchLogs();
+  };
+
+  const getActionIcon = (action) => {
+    switch(action) {
+      case "create_script":
+      case "registration_success":
+      case "login_success":
+        return <FiCheckCircle className="w-4 h-4 text-green-500" />;
+      case "update_script":
+        return <FiRefreshCw className="w-4 h-4 text-blue-500" />;
+      case "delete_script":
+        return <FiXCircle className="w-4 h-4 text-red-500" />;
+      case "login_failed":
+      case "error":
+        return <FiAlertCircle className="w-4 h-4 text-red-500" />;
+      case "logout":
+        return <FiClock className="w-4 h-4 text-gray-500" />;
+      default:
+        return <FiCode className="w-4 h-4 text-indigo-500" />;
+    }
+  };
+
+  const getActionColor = (action) => {
+    switch(action) {
+      case "create_script":
+      case "registration_success":
+      case "login_success":
+        return "bg-green-100 text-green-800";
+      case "update_script":
+        return "bg-blue-100 text-blue-800";
+      case "delete_script":
+        return "bg-red-100 text-red-800";
+      case "login_failed":
+      case "error":
+        return "bg-red-100 text-red-800";
+      case "logout":
+        return "bg-gray-100 text-gray-800";
+      default:
+        return "bg-indigo-100 text-indigo-800";
+    }
+  };
+
+  const formatDetails = (details) => {
+    if (!details) return "—";
+    if (typeof details === "string") return details;
+    if (details.message) return details.message;
+    if (details.title) return `Script: ${details.title}`;
+    if (details.email) return `User: ${details.email}`;
+    if (details.scriptId) return `Script ID: ${details.scriptId}`;
+    return JSON.stringify(details).substring(0, 50) + "...";
   };
 
   if (loading) {
@@ -84,13 +152,14 @@ export default function LogList() {
       {/* Header with title and refresh */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
         <div className="flex items-center space-x-3">
-          <h2 className="text-xl font-semibold text-gray-800">Script Play Logs</h2>
+          <h2 className="text-xl font-semibold text-gray-800">Activity Logs</h2>
           <button
             onClick={handleRefresh}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition"
             title="Refresh logs"
+            disabled={loading}
           >
-            <FiRefreshCw className="w-4 h-4" />
+            <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
@@ -100,7 +169,7 @@ export default function LogList() {
             <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by user or script..."
+              placeholder="Search logs..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-64"
@@ -108,14 +177,15 @@ export default function LogList() {
           </div>
           
           <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
+            value={filterAction}
+            onChange={(e) => setFilterAction(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            <option value="all">All Logs</option>
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
+            {actions.map(action => (
+              <option key={action} value={action}>
+                {action === "all" ? "All Actions" : action.replace(/_/g, ' ')}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -132,10 +202,11 @@ export default function LogList() {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Script</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Played At</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -143,55 +214,57 @@ export default function LogList() {
               filteredLogs.map((log) => (
                 <tr key={log._id} className="hover:bg-gray-50 transition">
                   <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center text-sm text-gray-500">
+                      <FiClock className="w-4 h-4 mr-1" />
+                      {log.timestamp ? new Date(log.timestamp).toLocaleString() : "Unknown"}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center mr-3">
                         <FiUser className="w-4 h-4 text-indigo-600" />
                       </div>
                       <div>
                         <span className="text-sm font-medium text-gray-900">
-                          {log.user?.name || "Unknown User"}
+                          {log.user?.name || "System"}
                         </span>
-                        <span className="text-xs text-gray-500 block">
-                          {log.user?.email || ""}
-                        </span>
+                        {log.user?.email && (
+                          <span className="text-xs text-gray-500 block">
+                            {log.user.email}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center space-x-2">
+                      {getActionIcon(log.action)}
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getActionColor(log.action)}`}>
+                        {log.action?.replace(/_/g, ' ') || "Unknown"}
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center">
-                      <FiPlay className="w-4 h-4 text-green-500 mr-2" />
-                      <span className="text-sm text-gray-900">
-                        {log.script?.name || "Unknown Script"}
-                      </span>
-                    </div>
-                    {log.script?.type && (
-                      <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">
-                        {log.script.type}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-sm text-gray-500">
-                      <FiClock className="w-4 h-4 mr-1" />
-                      {log.playedAt ? new Date(log.playedAt).toLocaleString() : "Unknown"}
+                    <div className="text-sm text-gray-900 max-w-xs">
+                      {formatDetails(log.details)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                      Completed
+                    <span className="text-sm text-gray-500 font-mono">
+                      {log.ip || "—"}
                     </span>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
+                <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
                   <FiClock className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                   <p className="text-lg font-medium">No logs found</p>
                   <p className="text-sm">
-                    {searchTerm 
-                      ? "Try adjusting your search" 
-                      : "Script play logs will appear here"}
+                    {searchTerm || filterAction !== "all"
+                      ? "Try adjusting your search or filters" 
+                      : "Activity logs will appear here"}
                   </p>
                 </td>
               </tr>
