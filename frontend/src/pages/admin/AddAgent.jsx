@@ -7,7 +7,7 @@ export default function AddAgent({ agent, onClose, onAgentSaved }) {
     name: agent?.name || "",
     email: agent?.email || "",
     password: "", // Empty for edit mode
-    role: agent?.role || "user",
+    role: agent?.role || "opener", // Default to opener if not specified
     agentType: agent?.agentType || "general"
   });
   const [error, setError] = useState("");
@@ -227,9 +227,9 @@ export default function AddAgent({ agent, onClose, onAgentSaved }) {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
                     disabled={loading}
                   >
-                    <option value="user">User</option>
-                    <option value="editor">Editor</option>
                     <option value="admin">Admin</option>
+                    <option value="opener">Opener Agent</option>
+                    <option value="closer">Closer Agent</option>
                   </select>
                 </div>
 
