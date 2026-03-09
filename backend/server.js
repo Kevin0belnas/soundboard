@@ -57,7 +57,7 @@ async function startServer() {
     app.use("/api/logs", require("./routes/logs"));
     app.use("/api/tts", ttsRoutes);
     app.use("/api/users",require("./routes/users"));
-
+    app.use("/audio", express.static(path.join(__dirname, "uploads", "audio")));
 
 
     // Health check
