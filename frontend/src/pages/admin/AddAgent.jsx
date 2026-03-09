@@ -7,9 +7,9 @@ export default function AddAgent({ agent, onClose, onAgentSaved }) {
     name: agent?.name || "",
     email: agent?.email || "",
     password: "", // Empty for edit mode
-    role: agent?.role || "user",
-    agentType: agent?.agentType || "general"
+    role: agent?.role 
   });
+  
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -189,47 +189,22 @@ export default function AddAgent({ agent, onClose, onAgentSaved }) {
                   )}
                 </div>
 
-                {/* Agent Type Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Agent Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="agentType"
-                    value={formData.agentType}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-                    disabled={loading}
-                  >
-                    <option value="opener">Opener Agent</option>
-                    <option value="closer">Closer Agent</option>
-                    <option value="general">General Agent</option>
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {formData.agentType === "opener" 
-                      ? "Specializes in initial contact and qualification" 
-                      : formData.agentType === "closer"
-                      ? "Specializes in closing deals and negotiations"
-                      : "Handles general inquiries and support"}
-                  </p>
-                </div>
-
                 {/* Role Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Role
+                    Role <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="role"
                     value={formData.role}
                     onChange={handleChange}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
                     disabled={loading}
                   >
-                    <option value="user">User</option>
-                    <option value="editor">Editor</option>
                     <option value="admin">Admin</option>
+                    <option value="opener">Opener</option>
+                    <option value="closer">Closer</option>
                   </select>
                 </div>
 

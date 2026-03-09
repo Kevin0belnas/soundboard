@@ -73,7 +73,7 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
   const filteredAgents = agents.filter(agent =>
     agent.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     agent.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    agent.agentType?.toLowerCase().includes(searchQuery.toLowerCase())
+    agent.role?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Determine what to display
@@ -132,7 +132,7 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Login</th>
@@ -155,7 +155,7 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {agent.email}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  {/* <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       agent.agentType === 'opener' ? 'bg-green-100 text-green-800' :
                       agent.agentType === 'closer' ? 'bg-purple-100 text-purple-800' :
@@ -163,14 +163,14 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
                     }`}>
                       {agent.agentType ? agent.agentType.charAt(0).toUpperCase() + agent.agentType.slice(1) : 'General'}
                     </span>
-                  </td>
+                  </td> */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       agent.role === 'admin' ? 'bg-red-100 text-red-800' :
-                      agent.role === 'editor' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-gray-100 text-gray-800'
+                      agent.role === 'opener' ? 'bg-green-100 text-green-800' :
+                      'bg-purple-100 text-purple-800'
                     }`}>
-                      {agent.role?.charAt(0).toUpperCase() + agent.role?.slice(1) || 'User'}
+                      {agent.role?.charAt(0).toUpperCase() + agent.role?.slice(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
