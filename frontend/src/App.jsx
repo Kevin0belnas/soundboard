@@ -51,6 +51,7 @@ function App() {
     localStorage.setItem("token", userData.token);
     localStorage.setItem("role", userData.role);
     localStorage.setItem("name", userData.name);
+    localStorage.setItem("userId", userData.userId);
   };
 
   const handleLogout = () => {

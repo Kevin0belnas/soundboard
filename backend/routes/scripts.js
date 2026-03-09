@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const Script = require("../models/Script");
-const Log = require("../models/Log"); // Import Log model
+const Log = require("../models/Log");
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
 
@@ -37,19 +37,35 @@ const createLog = async (req, action, details) => {
     console.log(`✅ Log created: ${action}`);
   } catch (error) {
     console.error("❌ Error creating log:", error);
-    // Don't throw - logging should not break the main operation
   }
 };
 
 // Get all scripts (protected)
 router.get("/", authenticateToken, async (req, res) => {
   try {
-    const scripts = await Script.find().populate("author", "name email");
-    
+    let query = {};
+
+    if (req.user.role !== "admin") {
+      const User = require("../models/User");
+      const admins = await User.find({ role: "admin" }).select("_id");
+      const adminIds = admins.map((admin) => admin._id);
+
+      query = {
+        $or: [
+          { author: req.user.userId },
+          { author: { $in: adminIds } }
+        ]
+      };
+    }
+
+    const scripts = await Script.find(query)
+      .populate("author", "_id name email")
+      .sort({ createdAt: -1 });
+
     res.json(scripts);
   } catch (error) {
     console.error("Error fetching scripts:", error);
-    await createLog(req, "error", { 
+    await createLog(req, "error", {
       error: error.message,
       action: "fetch_scripts"
     });
@@ -57,78 +73,75 @@ router.get("/", authenticateToken, async (req, res) => {
   }
 });
 
-
-// Create script (protected) - UPDATED WITH LOGGING
+// Create script (protected)
 router.post("/", authenticateToken, async (req, res) => {
   try {
     const { title, content, type } = req.body;
-    
-    // Validate required fields
+
     if (!title || !content) {
       return res.status(400).json({ error: "Title and content are required" });
     }
 
-    console.log("1. Creating script for user:", req.user.userId);
-    console.log("2. Request body:", { title, content, type });
-
     if (!req.user.userId) {
-      console.error("❌ No userId in token!");
       return res.status(400).json({ error: "Invalid user token" });
+    }
+
+    let finalType = type || "general";
+
+    if (req.user.role === "closer") {
+      finalType = "closer";
+    } else if (req.user.role === "opener") {
+      finalType = "opener";
     }
 
     const scriptData = {
       title,
       content,
-      type: type || "general",
+      type: finalType,
       author: req.user.userId
     };
 
     const script = new Script(scriptData);
     const savedScript = await script.save();
-    
-    // Populate author info
-    await savedScript.populate("author", "name email");
-    
-    // CREATE LOG ENTRY
+
+    await savedScript.populate("author", "_id name email");
+
     await createLog(req, "create_script", {
       scriptId: savedScript._id,
       title: savedScript.title,
       type: savedScript.type,
       message: `Created script: ${savedScript.title}`
     });
-    
+
     res.status(201).json(savedScript);
-    
   } catch (error) {
     console.error("❌ Error creating script:", error);
-    
-    // LOG THE ERROR
+
     await createLog(req, "error", {
       error: error.message,
       action: "create_script",
       body: req.body
     });
-    
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ 
-        error: "Validation failed", 
-        details: error.errors 
+
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: error.errors
       });
     }
-    
+
     res.status(500).json({ error: error.message });
   }
 });
 
-// Update script (protected) - UPDATED WITH LOGGING
+// Update script (protected)
 router.put("/:id", authenticateToken, async (req, res) => {
   try {
     const { title, content, type } = req.body;
     const scriptId = req.params.id;
-    
-    // Find script
+
     const script = await Script.findById(scriptId);
-    
+
     if (!script) {
       await createLog(req, "error", {
         error: "Script not found",
@@ -137,66 +150,71 @@ router.put("/:id", authenticateToken, async (req, res) => {
       });
       return res.status(404).json({ error: "Script not found" });
     }
-    
-    // Check if user is author or admin
-    if (script.author.toString() !== req.user.userId && req.user.role !== "admin") {
+
+    const isAuthor = script.author.toString() === req.user.userId;
+    const isAdmin = req.user.role === "admin";
+
+    if (!isAuthor && !isAdmin) {
       await createLog(req, "unauthorized", {
         scriptId,
         userId: req.user.userId,
         action: "update_script",
-        message: "User attempted to update script without permission"
+        message: "User attempted to update a script they did not create"
       });
-      return res.status(403).json({ error: "Not authorized to edit this script" });
+      return res.status(403).json({ error: "Only the creator or admin can edit this script" });
     }
-    
-    // Store old values for logging
+
     const oldValues = {
       title: script.title,
       content: script.content,
       type: script.type
     };
-    
-    // Update fields
+
     script.title = title || script.title;
     script.content = content || script.content;
-    script.type = type || script.type;
+
+    if (req.user.role === "closer") {
+      script.type = "closer";
+    } else if (req.user.role === "opener") {
+      script.type = "opener";
+    } else {
+      script.type = type || script.type;
+    }
+
     script.updatedAt = Date.now();
-    
+
     await script.save();
-    await script.populate("author", "name email");
-    
-    // CREATE LOG ENTRY
+    await script.populate("author", "_id name email");
+
     await createLog(req, "update_script", {
       scriptId: script._id,
       title: script.title,
       oldValues,
-      newValues: { title, content, type },
+      newValues: { title, content, type: script.type },
       message: `Updated script: ${script.title}`
     });
-    
+
     res.json(script);
-    
   } catch (error) {
     console.error("Error updating script:", error);
-    
+
     await createLog(req, "error", {
       error: error.message,
       scriptId: req.params.id,
       action: "update_script"
     });
-    
+
     res.status(500).json({ error: error.message });
   }
 });
 
-// Delete script (protected) - UPDATED WITH LOGGING
+// Delete script (protected)
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const scriptId = req.params.id;
-    
-    // Find script
+
     const script = await Script.findById(scriptId);
-    
+
     if (!script) {
       await createLog(req, "error", {
         error: "Script not found",
@@ -205,46 +223,45 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       });
       return res.status(404).json({ error: "Script not found" });
     }
-    
-    // Check if user is author or admin
-    if (script.author.toString() !== req.user.userId && req.user.role !== "admin") {
+
+    const isAuthor = script.author.toString() === req.user.userId;
+    const isAdmin = req.user.role === "admin";
+
+    if (!isAuthor && !isAdmin) {
       await createLog(req, "unauthorized", {
         scriptId,
         userId: req.user.userId,
         action: "delete_script",
-        message: "User attempted to delete script without permission"
+        message: "User attempted to delete a script they did not create"
       });
-      return res.status(403).json({ error: "Not authorized to delete this script" });
+      return res.status(403).json({ error: "Only the creator or admin can delete this script" });
     }
-    
-    // Store script info for logging before deletion
+
     const deletedScriptInfo = {
       id: script._id,
       title: script.title,
       type: script.type
     };
-    
+
     await Script.findByIdAndDelete(scriptId);
-    
-    // CREATE LOG ENTRY
+
     await createLog(req, "delete_script", {
       scriptId: deletedScriptInfo.id,
       title: deletedScriptInfo.title,
       type: deletedScriptInfo.type,
       message: `Deleted script: ${deletedScriptInfo.title}`
     });
-    
+
     res.json({ message: "Script deleted successfully" });
-    
   } catch (error) {
     console.error("Error deleting script:", error);
-    
+
     await createLog(req, "error", {
       error: error.message,
       scriptId: req.params.id,
       action: "delete_script"
     });
-    
+
     res.status(500).json({ error: error.message });
   }
 });
