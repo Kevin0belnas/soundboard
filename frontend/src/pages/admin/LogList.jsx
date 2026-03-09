@@ -41,7 +41,7 @@ export default function LogList({ searchQuery: externalSearchQuery = "" }) {
       }
 
       const data = await res.json();
-      console.log("Fetched logs:", data);
+      //console.log("Fetched logs:", data);
       setLogs(Array.isArray(data) ? data : []);
       setError("");
     } catch (err) {

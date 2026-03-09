@@ -266,6 +266,22 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin/addagents"
+          element={
+            <ProtectedRoute allowedRole="admin">
+              <AdminDashboard onLogout={handleLogout} initialView="addagents" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/agentlist"
+          element={
+            <ProtectedRoute allowedRole="admin">
+              <AdminDashboard onLogout={handleLogout} initialView="agentlist" />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/admin/voice-soundboard"

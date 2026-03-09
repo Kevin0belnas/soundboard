@@ -77,7 +77,7 @@ export default function ScriptForm({ script, onClose, onSave }) {
 
   // Use portal to render at document body level
   return createPortal(
-    <div className="fixed inset-0 z-[100] overflow-y-auto">
+    <div className="fixed inset-0 z-100 overflow-y-auto">
       {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"

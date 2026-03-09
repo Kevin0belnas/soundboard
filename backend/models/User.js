@@ -21,6 +21,11 @@ const userSchema = new mongoose.Schema({
     enum: ["user", "admin", "editor"], 
     default: "user" 
   },
+  agentType: {
+    type: String,
+    enum: ["opener", "closer", "general"],
+    default: "general"
+  },
   createdAt: { 
     type: Date, 
     default: Date.now 
