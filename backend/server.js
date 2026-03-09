@@ -15,6 +15,8 @@ const ttsRoutes = require("./routes/tts");
 const app = express();
 
 // Middleware
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -54,6 +56,7 @@ async function startServer() {
     app.use("/api/scripts", require("./routes/scripts"));
     app.use("/api/logs", require("./routes/logs"));
     app.use("/api/tts", ttsRoutes);
+    app.use("/api/users",require("./routes/users"));
 
 
 // Connect MongoDB
@@ -76,5 +79,6 @@ mongoose.connect(process.env.MONGO_URI)
     process.exit(1);
   }
 }
+
 
 startServer();

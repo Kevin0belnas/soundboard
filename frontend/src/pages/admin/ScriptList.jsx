@@ -183,7 +183,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+            <h2 className="text-xl sm:text-2xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
               Script Library
             </h2>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">
@@ -257,7 +257,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
           <div className="flex items-center space-x-2 sm:space-x-3">
-            <FiAlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 flex-shrink-0" />
+            <FiAlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 shrink-0" />
             <p className="text-red-700 text-xs sm:text-sm flex-1">{error}</p>
           </div>
         </div>
@@ -265,7 +265,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
 
       {/* Scripts Grid */}
       {filteredScripts.length === 0 ? (
-        <div className="text-center py-12 sm:py-16 bg-gradient-to-br from-gray-50 to-white rounded-xl sm:rounded-2xl border-2 border-dashed border-gray-200">
+        <div className="text-center py-12 sm:py-16 bg-linear-to-br from-gray-50 to-white rounded-xl sm:rounded-2xl border-2 border-dashed border-gray-200">
           <div className="w-16 h-16 sm:w-20 sm:h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
             <FiCode className="w-8 h-8 sm:w-10 sm:h-10 text-indigo-600" />
           </div>
@@ -298,7 +298,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-indigo-600 transition truncate max-w-[200px] sm:max-w-full">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-indigo-600 transition truncate max-w-200px sm:max-w-full">
                         {script.title}
                       </h3>
                       <span className={`px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium rounded-full border ${getTypeColor(script.type)}`}>
@@ -314,7 +314,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
                       {script.author && (
                         <div className="flex items-center gap-1">
                           <FiUser className="w-3 h-3" />
-                          <span className="truncate max-w-[100px] sm:max-w-full">
+                          <span className="truncate max-w-100px sm:max-w-full">
                             {script.author.name || script.author.email}
                           </span>
                         </div>
@@ -369,7 +369,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
               </div>
 
               {/* Progress bar */}
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-b-lg sm:rounded-b-xl"></div>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-linear-to-r from-indigo-500 to-purple-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-b-lg sm:rounded-b-xl"></div>
             </div>
           ))}
         </div>
