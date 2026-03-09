@@ -22,6 +22,8 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
   const [selectedType, setSelectedType] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  
+  const userRole = localStorage.getItem("role");
 
   const filterTypes = ["all", ...new Set(scripts.map(s => s.type))];
 
@@ -211,7 +213,21 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
             />
           </div>
           
-          <div className="flex gap-2">  
+          <div className="flex gap-2">
+            {userRole === "admin" && (
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`px-3 sm:px-4 py-2 sm:py-3 border rounded-lg sm:rounded-xl flex items-center space-x-2 transition-all text-sm ${
+                  showFilters || selectedType !== "all"
+                    ? "bg-indigo-50 border-indigo-200 text-indigo-600"
+                    : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <FiFilter className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline">Filter</span>
+              </button>
+            )}
+            
             <button
               onClick={fetchScripts}
               className="px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg sm:rounded-xl text-gray-600 hover:bg-gray-50 transition-all"
@@ -324,13 +340,16 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-1 sm:gap-2 ml-2">
-                    <button
+                    {userRole === "admin" && (
+                      <button
                       onClick={() => onEditScript(script)}
                       className="p-1.5 sm:p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                       title="Edit script"
                     >
                       <FiEdit2 className="w-4 h-4" />
                     </button>
+                    )}
+                     
                     
                     {deleteConfirm === script._id ? (
                       <div className="flex items-center gap-1 bg-red-50 rounded-lg p-1">

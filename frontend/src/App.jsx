@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/admin/AdminDashboard"; 
-import OpenerDashboard from "./pages/opener/OpenerDashboard"; 
+import OpenerDashboard from "./pages/opener/OpenerDashboard";  
+import CloserDashboard from "./pages/closer/CloserDashboard";
 
 // ---------------- Protected Route ----------------
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -22,6 +23,7 @@ const PublicRoute = ({ children }) => {
   if (token && role) {
     if (role === "admin") return <Navigate to="/admin" replace />;
     if (role === "opener") return <Navigate to="/opener" replace />;
+    if (role === "closer") return <Navigate to="/closer" replace />;
   }
 
   return children;
@@ -122,10 +124,7 @@ function App() {
           }
         />
 
-        
-
-        {/* Agent Routes - commented for now */}
-        
+        {/* Opener Routes */}
         <Route
           path="/opener"
           element={
@@ -133,7 +132,7 @@ function App() {
               <OpenerDashboard onLogout={handleLogout} />
             </ProtectedRoute>
           }
-        />
+        /> 
 
         <Route
           path="/opener/voice-soundboard"
@@ -144,15 +143,33 @@ function App() {
           }
         />
 
-
-        {/* <Route
+        {/* Closer Routes */}
+        <Route
           path="/closer"
           element={
             <ProtectedRoute allowedRole="closer">
-              <CloserAgent onLogout={handleLogout} />
+              <CloserDashboard onLogout={handleLogout} />
             </ProtectedRoute>
           }
-        /> */}
+        />
+        
+        <Route
+          path="/closer/scripts"
+          element={
+            <ProtectedRoute allowedRole="closer">
+              <CloserDashboard onLogout={handleLogout} initialView="scripts" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/closer/voice-soundboard"
+          element={
+            <ProtectedRoute allowedRole="closer">
+              <CloserDashboard onLogout={handleLogout} initialView="voice-soundboard" />
+            </ProtectedRoute>
+          }
+        />
        
 
         {/* Default & catch-all */}
