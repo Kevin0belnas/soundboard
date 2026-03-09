@@ -38,13 +38,12 @@ router.get("/:id", authMiddleware(['admin']), async (req, res) => {
 // Update user (admin only)
 router.put("/:id", authMiddleware(['admin']), async (req, res) => {
   try {
-    const { name, role, agentType, password } = req.body;
+    const { name, role, password } = req.body;
     
     // Build update object
     const updateData = { 
       name, 
-      role, 
-      agentType 
+      role
     };
 
     // If password is provided, hash it

@@ -35,12 +35,12 @@ export default function Login({ onLogin }) {
 
       // Call parent callback
       onLogin({ token: data.token, role: data.role, name: data.name });
-
+      console.log("role:", data.role);
+      console.log("name:", data.name);
       // Redirect immediately based on role
       if (data.role === "admin") navigate("/admin");
-      // Add other roles later
-      // if (data.role === "opener") navigate("/opener");
-      // if (data.role === "closer") navigate("/closer");
+      else if (data.role === "closer") navigate("/closer");
+      else navigate("/"); // fallback
 
     } catch (err) {
       setError("Network error. Please check if server is running.");
