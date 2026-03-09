@@ -30,6 +30,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
       setLoading(true);
       setError("");
       const token = localStorage.getItem("token");
+      const userRole = localStorage.getItem("role");
       
       if (!token) {
         setError("Not authenticated. Please login again.");
@@ -58,7 +59,12 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
       }
 
       const data = await res.json();
-      const scriptsArray = Array.isArray(data) ? data : [];
+      let scriptsArray = Array.isArray(data) ? data : [];
+      
+      if (userRole !== "admin") {
+        scriptsArray = scriptsArray.filter(script => script.type === userRole);
+      }
+      
       setScripts(scriptsArray);
     } catch (err) {
       console.error("Error fetching scripts:", err);
@@ -205,19 +211,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
             />
           </div>
           
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`px-3 sm:px-4 py-2 sm:py-3 border rounded-lg sm:rounded-xl flex items-center space-x-2 transition-all text-sm ${
-                showFilters || selectedType !== "all"
-                  ? "bg-indigo-50 border-indigo-200 text-indigo-600"
-                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              <FiFilter className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">Filter</span>
-            </button>
-            
+          <div className="flex gap-2">  
             <button
               onClick={fetchScripts}
               className="px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg sm:rounded-xl text-gray-600 hover:bg-gray-50 transition-all"

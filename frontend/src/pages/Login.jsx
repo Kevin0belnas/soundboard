@@ -22,6 +22,8 @@ export default function Login({ onLogin }) {
 
       const data = await res.json();
 
+      console.log("Login response:", { status: res.status, data });
+
       if (!res.ok) {
         setError(data.error || data.message || "Login failed");
         setLoading(false);
@@ -31,7 +33,7 @@ export default function Login({ onLogin }) {
       // Save to localStorage
       localStorage.setItem("token", data.token);
       localStorage.setItem("role", data.role);
-      localStorage.setItem("name", data.name);
+      localStorage.setItem("name", data.name); 
 
       // Call parent callback
       onLogin({ token: data.token, role: data.role, name: data.name });
@@ -39,7 +41,7 @@ export default function Login({ onLogin }) {
       // Redirect immediately based on role
       if (data.role === "admin") navigate("/admin");
       // Add other roles later
-      // if (data.role === "opener") navigate("/opener");
+      if (data.role === "opener") navigate("/opener");
       // if (data.role === "closer") navigate("/closer");
 
     } catch (err) {

@@ -1,175 +1,7 @@
-// import { useState, useEffect } from "react";
-// import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-// import Login from "./pages/Login";
-// import AdminDashboard from "./pages/admin/AdminDashboard";
-// //will add these later when we have the agent pages ready
-// // import OpenerAgent from "./pages/agent/OpenerAgent";
-// // import CloserAgent from "./pages/agent/CloserAgent";
-
-// // Protected Route wrapper component
-// const ProtectedRoute = ({ children, allowedRole }) => {
-//   const token = localStorage.getItem("token");
-//   const role = localStorage.getItem("role");
-  
-//   if (!token) {
-//     return <Navigate to="/login" replace />;
-//   }
-  
-//   if (allowedRole && role !== allowedRole) {
-//     return <Navigate to="/unauthorized" replace />;
-//   }
-  
-//   return children;
-// };
-
-// // Public Route wrapper (redirects to dashboard if already logged in)
-// const PublicRoute = ({ children }) => {
-//   const token = localStorage.getItem("token");
-//   const role = localStorage.getItem("role");
-  
-//   if (token && role) {
-//     // Redirect to appropriate dashboard based on role
-//     if (role === "admin") {
-//       return <Navigate to="/admin" replace />;
-//     }
-//     // Add other role redirects here  not yet implemented
-//     // if (role === "opener") return <Navigate to="/opener" replace />;
-//     // if (role === "closer") return <Navigate to="/closer" replace />;
-//   }
-  
-//   return children;
-// };
-
-// function App() {
-//   const [isAuthenticated, setIsAuthenticated] = useState(false);
-//   const [userRole, setUserRole] = useState(null);
-
-//   // Check authentication status on app load
-//   useEffect(() => {
-//     const token = localStorage.getItem("token");
-//     const role = localStorage.getItem("role");
-    
-//     if (token && role) {
-//       setIsAuthenticated(true);
-//       setUserRole(role);
-//     }
-//   }, []);
-
-//   const handleLogin = (userData) => {
-//     setIsAuthenticated(true);
-//     setUserRole(userData.role);
-//   };
-
-//   const handleLogout = () => {
-//     localStorage.clear();
-//     setIsAuthenticated(false);
-//     setUserRole(null);
-//   };
-
-//   return (
-//     <BrowserRouter>
-//       <Routes>
-//         {/* Public Routes */}
-//         <Route 
-//           path="/login" 
-//           element={
-//             <PublicRoute>
-//               <Login onLogin={handleLogin} />
-//             </PublicRoute>
-//           } 
-//         />
-        
-//         <Route 
-//           path="/unauthorized" 
-//           element={
-//             <div className="min-h-screen flex items-center justify-center bg-gray-100">
-//               <div className="bg-white p-8 rounded-lg shadow-md text-center">
-//                 <h1 className="text-2xl font-bold text-red-600 mb-4">Unauthorized Access</h1>
-//                 <p className="text-gray-600 mb-4">You don't have permission to access this page.</p>
-//                 <button
-//                   onClick={() => window.location.href = "/login"}
-//                   className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-//                 >
-//                   Go to Login
-//                 </button>
-//               </div>
-//             </div>
-//           } 
-//         />
-
-//         {/* Protected Admin Routes */}
-//         <Route 
-//           path="/admin" 
-//           element={
-//             <ProtectedRoute allowedRole="admin">
-//               <AdminDashboard onLogout={handleLogout} />
-//             </ProtectedRoute>
-//           } 
-//         />
-        
-//         <Route 
-//           path="/admin/scripts" 
-//           element={
-//             <ProtectedRoute allowedRole="admin">
-//               <AdminDashboard onLogout={handleLogout} initialView="scripts" />
-//             </ProtectedRoute>
-//           } 
-//         />
-        
-//         <Route 
-//           path="/admin/logs" 
-//           element={
-//             <ProtectedRoute allowedRole="admin">
-//               <AdminDashboard onLogout={handleLogout} initialView="logs" />
-//             </ProtectedRoute>
-//           } 
-//         />
-
-//         {/* Protected Agent Routes (commented out for now) */}
-//         {/* 
-//         <Route 
-//           path="/opener" 
-//           element={
-//             <ProtectedRoute allowedRole="opener">
-//               <OpenerAgent onLogout={handleLogout} />
-//             </ProtectedRoute>
-//           } 
-//         />
-        
-//         <Route 
-//           path="/closer" 
-//           element={
-//             <ProtectedRoute allowedRole="closer">
-//               <CloserAgent onLogout={handleLogout} />
-//             </ProtectedRoute>
-//           } 
-//         />
-//         */}
-
-//         {/* Default redirect */}
-//         <Route 
-//           path="/" 
-//           element={<Navigate to="/login" replace />} 
-//         />
-        
-//         {/* Catch all - redirect to login */}
-//         <Route 
-//           path="*" 
-//           element={<Navigate to="/login" replace />} 
-//         />
-//       </Routes>
-//     </BrowserRouter>
-//   );
-// }
-
-// export default App;
-
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-// Agent pages (commented for now)
-// import OpenerAgent from "./pages/agent/OpenerAgent";
-// import CloserAgent from "./pages/agent/CloserAgent";
+import AdminDashboard from "./pages/admin/AdminDashboard"; 
+import OpenerDashboard from "./pages/opener/OpenerDashboard"; 
 
 // ---------------- Protected Route ----------------
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -189,9 +21,7 @@ const PublicRoute = ({ children }) => {
 
   if (token && role) {
     if (role === "admin") return <Navigate to="/admin" replace />;
-    // Add other roles later
-    // if (role === "opener") return <Navigate to="/opener" replace />;
-    // if (role === "closer") return <Navigate to="/closer" replace />;
+    if (role === "opener") return <Navigate to="/opener" replace />;
   }
 
   return children;
@@ -295,24 +125,35 @@ function App() {
         
 
         {/* Agent Routes - commented for now */}
-        {/*
+        
         <Route
           path="/opener"
           element={
             <ProtectedRoute allowedRole="opener">
-              <OpenerAgent onLogout={handleLogout} />
+              <OpenerDashboard onLogout={handleLogout} />
             </ProtectedRoute>
           }
         />
+
         <Route
+          path="/opener/voice-soundboard"
+          element={
+            <ProtectedRoute allowedRole="opener">
+              <OpenerDashboard onLogout={handleLogout} initialView="voice-soundboard" />
+            </ProtectedRoute>
+          }
+        />
+
+
+        {/* <Route
           path="/closer"
           element={
             <ProtectedRoute allowedRole="closer">
               <CloserAgent onLogout={handleLogout} />
             </ProtectedRoute>
           }
-        />
-        */}
+        /> */}
+       
 
         {/* Default & catch-all */}
         <Route path="/" element={<Navigate to="/login" replace />} />

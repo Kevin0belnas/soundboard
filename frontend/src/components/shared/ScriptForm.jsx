@@ -2,10 +2,13 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 
 export default function ScriptForm({ script, onClose, onSave }) {
+  const userRole = localStorage.getItem("role");
+  const defaultType = userRole === "admin" ? "opener" : userRole;
+  
   const [formData, setFormData] = useState({
     title: script?.title || script?.name || "",
     content: script?.content || "",
-    type: script?.type || "opener"
+    type: script?.type || defaultType
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -114,19 +117,23 @@ export default function ScriptForm({ script, onClose, onSave }) {
                   />
                 </div>
 
-                <div className="mb-3">
-                  <label className="block mb-1 font-medium">Type</label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({...formData, type: e.target.value})}
-                    className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    disabled={saving}
-                  >
-                    <option value="opener">Opener</option>
-                    <option value="closer">Closer</option>
-                    <option value="general">General</option>
-                  </select>
-                </div>
+                {userRole === "admin" ? (
+                  <div className="mb-3">
+                    <label className="block mb-1 font-medium">Type</label>
+                    <select
+                      value={formData.type}
+                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                      className="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      disabled={saving}
+                    >
+                      <option value="opener">Opener</option>
+                      <option value="closer">Closer</option>
+                      <option value="general">General</option>
+                    </select>
+                  </div>
+                ) : (
+                  <input type="hidden" value={formData.type} />
+                )}
 
                 <div className="mb-4">
                   <label className="block mb-1 font-medium">Content</label>
