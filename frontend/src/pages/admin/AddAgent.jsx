@@ -6,8 +6,8 @@ export default function AddAgent({ agent, onClose, onAgentSaved }) {
   const [formData, setFormData] = useState({
     name: agent?.name || "",
     email: agent?.email || "",
-    password: "", // Empty for edit mode
-    role: agent?.role 
+    password: "",
+    role: agent?.role || "opener"
   });
   
   const [error, setError] = useState("");
@@ -40,6 +40,9 @@ export default function AddAgent({ agent, onClose, onAgentSaved }) {
 
     // For edit mode, don't send password if it's empty
     const dataToSend = { ...formData };
+    console.log("Submitting agent data:", dataToSend);
+
+
     if (isEditMode && !dataToSend.password) {
       delete dataToSend.password;
     }
@@ -288,19 +291,6 @@ export default function AddAgent({ agent, onClose, onAgentSaved }) {
             required={!isEditMode}
             className="w-full px-3 py-2 border rounded-lg"
           />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Agent Type</label>
-          <select
-            name="agentType"
-            value={formData.agentType}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border rounded-lg"
-          >
-            <option value="opener">Opener</option>
-            <option value="closer">Closer</option>
-            <option value="general">General</option>
-          </select>
         </div>
         <button
           type="submit"

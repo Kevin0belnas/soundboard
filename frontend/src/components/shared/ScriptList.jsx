@@ -12,6 +12,7 @@ import {
   FiCheckCircle,
   FiXCircle
 } from "react-icons/fi";
+import Pagination from "../Pagination";
 
 export default function ScriptList({ searchQuery: externalSearchQuery = "", onEditScript }) {
   const [scripts, setScripts] = useState([]);
@@ -22,17 +23,33 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
   const [selectedType, setSelectedType] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   
   const userRole = localStorage.getItem("role");
 
-  const filterTypes = ["all", ...new Set(scripts.map(s => s.type))];
+  // Filter types based on user role
+  const getFilterTypes = () => {
+    if (userRole === "admin") {
+      return ["all", ...new Set(scripts.map(s => s.type))];
+    }
+
+    return ["all", "admin", userRole];
+  };
+
+  const filterTypes = getFilterTypes();
+
+  // Pagination
+  const totalPages = Math.ceil(filteredScripts.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedScripts = filteredScripts.slice(startIndex, startIndex + pageSize);
 
   const fetchScripts = async () => {
     try {
       setLoading(true);
       setError("");
       const token = localStorage.getItem("token");
-      const userRole = localStorage.getItem("role");
+      const userRole = localStorage.getItem("role"); 
       
       if (!token) {
         setError("Not authenticated. Please login again.");
@@ -187,7 +204,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
 
   return (
     <div className="p-4 sm:p-6">
-      {/* Header Section */}
+      {/* Header */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <div>
@@ -214,19 +231,17 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
           </div>
           
           <div className="flex gap-2">
-            {userRole === "admin" && (
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`px-3 sm:px-4 py-2 sm:py-3 border rounded-lg sm:rounded-xl flex items-center space-x-2 transition-all text-sm ${
-                  showFilters || selectedType !== "all"
-                    ? "bg-indigo-50 border-indigo-200 text-indigo-600"
-                    : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                <FiFilter className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Filter</span>
-              </button>
-            )}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-3 sm:px-4 py-2 sm:py-3 border rounded-lg sm:rounded-xl flex items-center space-x-2 transition-all text-sm ${
+                showFilters || selectedType !== "all"
+                  ? "bg-indigo-50 border-indigo-200 text-indigo-600"
+                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <FiFilter className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Filter</span>
+            </button>
             
             <button
               onClick={fetchScripts}
@@ -298,8 +313,9 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
           )}
         </div>
       ) : (
-        <div className="grid gap-3 sm:gap-4">
-          {filteredScripts.map((script) => (
+        <>
+          <div className="grid gap-3 sm:gap-4">
+            {paginatedScripts.map((script) => (
             <div
               key={script._id}
               className="group relative bg-white rounded-lg sm:rounded-xl border border-gray-200 hover:border-indigo-200 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300"
@@ -384,8 +400,17 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
               {/* Progress bar */}
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-linear-to-r from-indigo-500 to-purple-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-b-lg sm:rounded-b-xl"></div>
             </div>
-          ))}
-        </div>
+            ))}
+          </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+          />
+        </>
       )}
     </div>
   );

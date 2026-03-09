@@ -128,7 +128,7 @@ export default function ScriptForm({ script, onClose, onSave }) {
                     >
                       <option value="opener">Opener</option>
                       <option value="closer">Closer</option>
-                      <option value="general">General</option>
+                      <option value="general">Admin</option>
                     </select>
                   </div>
                 ) : (

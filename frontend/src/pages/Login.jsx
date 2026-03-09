@@ -22,8 +22,6 @@ export default function Login({ onLogin }) {
 
       const data = await res.json();
 
-      console.log("Login response:", { status: res.status, data });
-
       if (!res.ok) {
         setError(data.error || data.message || "Login failed");
         setLoading(false);

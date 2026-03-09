@@ -44,8 +44,24 @@ const createLog = async (req, action, details) => {
 // Get all scripts (protected)
 router.get("/", authenticateToken, async (req, res) => {
   try {
-    const scripts = await Script.find().populate("author", "name email");
+    let query = {};
     
+    if (req.user.role !== "admin") {
+      const User = require("../models/User");
+      const adminUsers = await User.find({ role: "admin" }).select("_id");
+      const adminIds = adminUsers.map(u => u._id);
+      
+      query = {
+        $or: [
+          { author: req.user.userId },
+          { author: { $in: adminIds } }
+        ]
+      };
+    }
+    
+    const scripts = await Script.find(query).populate("author", "name email");
+    console.log(`Fetched ${scripts.length} scripts for user ${req.user.userId}`);
+    console.log("Scripts data:", scripts);
     res.json(scripts);
   } catch (error) {
     console.error("Error fetching scripts:", error);

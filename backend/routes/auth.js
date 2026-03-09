@@ -137,6 +137,8 @@ router.post("/register", async (req, res) => {
       name,
       role: role || "user"
     });
+
+    console.log("user data being saved:", user)
     
     await user.save();
     
