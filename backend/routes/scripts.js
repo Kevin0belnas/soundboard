@@ -57,6 +57,7 @@ router.get("/", authenticateToken, async (req, res) => {
   }
 });
 
+
 // Create script (protected) - UPDATED WITH LOGGING
 router.post("/", authenticateToken, async (req, res) => {
   try {
