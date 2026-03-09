@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { 
-  FiEdit2, 
-  FiTrash2, 
+import {
+  FiEdit2,
+  FiTrash2,
   FiSearch,
   FiFilter,
   FiRefreshCw,
@@ -27,6 +27,12 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
   const [pageSize, setPageSize] = useState(5);
   
   const userRole = localStorage.getItem("role");
+  const userId = localStorage.getItem("userId");
+
+  // Normalize type to lowercase
+  const normalizeType = (type) => {
+    return type?.toLowerCase() || "unknown";
+  };
 
   // Filter types based on user role
   const getFilterTypes = () => {
@@ -36,6 +42,8 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
 
     return ["all", "admin", userRole];
   };
+
+  
 
   const filterTypes = getFilterTypes();
 
@@ -48,6 +56,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
     try {
       setLoading(true);
       setError("");
+
       const token = localStorage.getItem("token");
       const userRole = localStorage.getItem("role"); 
       
@@ -59,7 +68,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
 
       const res = await fetch("http://localhost:5000/api/scripts", {
         headers: {
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json"
         }
       });
@@ -79,11 +88,24 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
 
       const data = await res.json();
       let scriptsArray = Array.isArray(data) ? data : [];
-      
-      if (userRole !== "admin") {
-        scriptsArray = scriptsArray.filter(script => script.type === userRole);
+
+      scriptsArray = scriptsArray.map((script) => ({
+        ...script,
+        normalizedType: normalizeType(script.type),
+        canEdit: userRole === "admin" || script.author?._id === userId,
+        canDelete: userRole === "admin" || script.author?._id === userId
+      }));
+
+      if (userRole === "closer") {
+        scriptsArray = scriptsArray.filter(
+          (script) => script.normalizedType === "admin" || script.normalizedType === "closer"
+        );
+      } else if (userRole === "opener") {
+        scriptsArray = scriptsArray.filter(
+          (script) => script.normalizedType === "admin" || script.normalizedType === "opener"
+        );
       }
-      
+
       setScripts(scriptsArray);
     } catch (err) {
       console.error("Error fetching scripts:", err);
@@ -95,20 +117,21 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
 
   const filterScripts = (scriptsList, query, type) => {
     let filtered = [...scriptsList];
-    
+
     if (query) {
       const lowerQuery = query.toLowerCase();
-      filtered = filtered.filter(script => 
-        script.title.toLowerCase().includes(lowerQuery) ||
-        script.content.toLowerCase().includes(lowerQuery) ||
-        script.type.toLowerCase().includes(lowerQuery)
+      filtered = filtered.filter(
+        (script) =>
+          script.title?.toLowerCase().includes(lowerQuery) ||
+          script.content?.toLowerCase().includes(lowerQuery) ||
+          script.normalizedType?.toLowerCase().includes(lowerQuery)
       );
     }
-    
+
     if (type !== "all") {
-      filtered = filtered.filter(script => script.type === type);
+      filtered = filtered.filter((script) => script.normalizedType === type);
     }
-    
+
     setFilteredScripts(filtered);
   };
 
@@ -118,27 +141,25 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
 
   useEffect(() => {
     filterScripts(scripts, searchQuery, selectedType);
-  }, [searchQuery, selectedType, scripts]);
+  }, [scripts, searchQuery, selectedType]);
 
   useEffect(() => {
-    if (externalSearchQuery !== undefined) {
-      setSearchQuery(externalSearchQuery);
-    }
+    setSearchQuery(externalSearchQuery || "");
   }, [externalSearchQuery]);
 
   const handleDelete = async (id) => {
     try {
       const token = localStorage.getItem("token");
-      
+
       if (!token) {
         setError("Not authenticated. Please login again.");
         return;
       }
 
-      const res = await fetch(`http://localhost:5000/api/scripts/${id}`, { 
+      const res = await fetch(`http://localhost:5000/api/scripts/${id}`, {
         method: "DELETE",
         headers: {
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         }
       });
 
@@ -166,9 +187,9 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
 
   const getTypeColor = (type) => {
     const colors = {
-      opener: "bg-indigo-100 text-indigo-800 border-indigo-200",
+      admin: "bg-purple-100 text-purple-800 border-purple-200",
       closer: "bg-green-100 text-green-800 border-green-200",
-      general: "bg-purple-100 text-purple-800 border-purple-200",
+      opener: "bg-indigo-100 text-indigo-800 border-indigo-200",
       default: "bg-gray-100 text-gray-800 border-gray-200"
     };
     return colors[type?.toLowerCase()] || colors.default;
@@ -184,8 +205,8 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
 
     if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
   };
 
   if (loading) {
@@ -212,12 +233,11 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
               Script Library
             </h2>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">
-              {filteredScripts.length} {filteredScripts.length === 1 ? 'script' : 'scripts'} available
+              {filteredScripts.length} {filteredScripts.length === 1 ? "script" : "scripts"} available
             </p>
           </div>
         </div>
 
-        {/* Search and Filter Bar */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 relative">
             <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
@@ -229,7 +249,7 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
               className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white/50 backdrop-blur-sm"
             />
           </div>
-          
+
           <div className="flex gap-2">
             <button
               onClick={() => setShowFilters(!showFilters)}
@@ -248,12 +268,11 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
               className="px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg sm:rounded-xl text-gray-600 hover:bg-gray-50 transition-all"
               disabled={loading}
             >
-              <FiRefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${loading ? 'animate-spin' : ''}`} />
+              <FiRefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
 
-        {/* Filter Options */}
         {showFilters && (
           <div className="mt-3 p-3 sm:p-4 bg-white rounded-lg sm:rounded-xl border border-gray-200 shadow-lg">
             <h3 className="text-xs sm:text-sm font-medium text-gray-700 mb-2">Filter by Type</h3>
@@ -262,15 +281,13 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
                 <button
                   key={type}
                   onClick={() => setSelectedType(type)}
-                  className={`
-                    px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium capitalize transition-all
-                    ${selectedType === type
-                      ? 'bg-indigo-600 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }
-                  `}
+                  className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium capitalize transition-all ${
+                    selectedType === type
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
                 >
-                  {type}
+                  {type === "all" ? "All" : type === "admin" ? "Admin" : type === "closer" ? "Closer" : "Opener"}
                 </button>
               ))}
             </div>
@@ -278,7 +295,6 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
         )}
       </div>
 
-      {/* Error Message */}
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
           <div className="flex items-center space-x-2 sm:space-x-3">
@@ -288,7 +304,6 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
         </div>
       )}
 
-      {/* Scripts Grid */}
       {filteredScripts.length === 0 ? (
         <div className="text-center py-12 sm:py-16 bg-linear-to-br from-gray-50 to-white rounded-xl sm:rounded-2xl border-2 border-dashed border-gray-200">
           <div className="w-16 h-16 sm:w-20 sm:h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
@@ -296,11 +311,12 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
           </div>
           <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-2">No scripts found</h3>
           <p className="text-sm text-gray-500 mb-4 sm:mb-6">
-            {searchQuery || selectedType !== "all"
+            {searchQuery || (userRole === "admin" && selectedType !== "all")
               ? "Try adjusting your search or filters"
               : "Get started by creating your first script"}
           </p>
-          {(searchQuery || selectedType !== "all") && (
+
+          {(searchQuery || (userRole === "admin" && selectedType !== "all")) && (
             <button
               onClick={() => {
                 setSearchQuery("");
@@ -327,15 +343,19 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
                       <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-indigo-600 transition truncate max-w-200px sm:max-w-full">
                         {script.title}
                       </h3>
-                      <span className={`px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium rounded-full border ${getTypeColor(script.type)}`}>
-                        {script.type}
+                      <span
+                        className={`px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium rounded-full border ${getTypeColor(
+                          script.normalizedType
+                        )}`}
+                      >
+                        {script.normalizedType}
                       </span>
                     </div>
-                    
+
                     <p className="text-gray-600 text-xs sm:text-sm leading-relaxed mb-3 line-clamp-2">
                       {script.content}
                     </p>
-                    
+
                     <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-gray-500">
                       {script.author && (
                         <div className="flex items-center gap-1">
@@ -354,50 +374,48 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
                   <div className="flex items-center gap-1 sm:gap-2 ml-2">
-                    {userRole === "admin" && (
+                    {script.canEdit && (
                       <button
-                      onClick={() => onEditScript(script)}
-                      className="p-1.5 sm:p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                      title="Edit script"
-                    >
-                      <FiEdit2 className="w-4 h-4" />
-                    </button>
-                    )}
-                     
-                    
-                    {deleteConfirm === script._id ? (
-                      <div className="flex items-center gap-1 bg-red-50 rounded-lg p-1">
-                        <button
-                          onClick={() => handleDelete(script._id)}
-                          className="p-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
-                          title="Confirm delete"
-                        >
-                          <FiCheckCircle className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm(null)}
-                          className="p-1 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-200 transition"
-                          title="Cancel"
-                        >
-                          <FiXCircle className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setDeleteConfirm(script._id)}
-                        className="p-1.5 sm:p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                        title="Delete script"
+                        onClick={() => onEditScript(script)}
+                        className="p-1.5 sm:p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                        title="Edit script"
                       >
-                        <FiTrash2 className="w-4 h-4" />
+                        <FiEdit2 className="w-4 h-4" />
                       </button>
                     )}
+
+                    {script.canDelete &&
+                      (deleteConfirm === script._id ? (
+                        <div className="flex items-center gap-1 bg-red-50 rounded-lg p-1">
+                          <button
+                            onClick={() => handleDelete(script._id)}
+                            className="p-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
+                            title="Confirm delete"
+                          >
+                            <FiCheckCircle className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(null)}
+                            className="p-1 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-200 transition"
+                            title="Cancel"
+                          >
+                            <FiXCircle className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteConfirm(script._id)}
+                          className="p-1.5 sm:p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          title="Delete script"
+                        >
+                          <FiTrash2 className="w-4 h-4" />
+                        </button>
+                      ))}
                   </div>
                 </div>
               </div>
 
-              {/* Progress bar */}
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-linear-to-r from-indigo-500 to-purple-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-b-lg sm:rounded-b-xl"></div>
             </div>
             ))}

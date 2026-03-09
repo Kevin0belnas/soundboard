@@ -31,10 +31,11 @@ export default function Login({ onLogin }) {
       // Save to localStorage
       localStorage.setItem("token", data.token);
       localStorage.setItem("role", data.role);
-      localStorage.setItem("name", data.name); 
+      localStorage.setItem("name", data.name);
+      localStorage.setItem("userId", data.userId);
 
       // Call parent callback
-      onLogin({ token: data.token, role: data.role, name: data.name }); 
+      onLogin({ token: data.token, role: data.role, name: data.name, userId: data.userId }); 
       // Redirect immediately based on role
       if (data.role === "admin") navigate("/admin");
       // Add other roles later
