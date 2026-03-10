@@ -1,14 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom"; 
 import ScriptList from "../../components/shared/ScriptList";
-import LogList from "./LogList";
 import ScriptForm from "../../components/shared/ScriptForm";
 import VoiceSoundboard from "../../components/shared/VoiceSoundBoard";
-import AgentsList from "./AgentsList";
-import AddAgent from "./AddAgent"; 
 import { 
-  FiBook, 
-  FiClock, 
+  FiBook,  
   FiLogOut, 
   FiBell,
   FiMenu,
@@ -16,18 +12,14 @@ import {
   FiChevronRight,
   FiSearch,
   FiRefreshCw,
-  FiVolume2,
-  FiPlusCircle, 
-  FiUserPlus
+  FiVolume2, 
 } from "react-icons/fi";
 
-export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
+export default function CloserDashboard({ onLogout, initialView = "scripts" }) {
   const [view, setView] = useState(() => {
     const path = window.location.pathname;
-    if (path.includes("/admin/scripts")) return "scripts";
-    if (path.includes("/admin/addagents")) return "addagents";
-    if (path.includes("/admin/logs")) return "logs";
-    if (path.includes("/admin/voice-soundboard")) return "voice-soundboard";
+    if (path.includes("/closer/scripts")) return "scripts";
+    if (path.includes("/closer/voice-soundboard")) return "voice-soundboard";
     
     return initialView;
   });
@@ -51,7 +43,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
   const handleViewChange = (newView) => {
     setView(newView);
     setIsMobileMenuOpen(false);
-    navigate(`/admin/${newView}`);
+    navigate(`/closer/${newView}`);
   };
 
   const handleLogout = () => {
@@ -103,9 +95,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
 
   const navItems = [
     { id: "scripts", label: "Scripts", icon: FiBook },
-    { id: "addagents", label: "Add Agents", icon: FiPlusCircle },
     { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
-    { id: "logs", label: "Logs", icon: FiClock },
   ];
 
   const pageTitle =
@@ -178,7 +168,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
                 <p className="font-medium truncate">{userName}</p>
                 <p className="text-xs text-gray-400 flex items-center">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
-                  Administrator
+                  Closer
                 </p>
               </div>
             )}
@@ -317,31 +307,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
               </button>
             )}
             
-            {view !== "voice-soundboard" && (
-              <div className="md:hidden flex items-center bg-white rounded-lg px-3 py-2 border border-gray-200 w-full sm:w-auto">
-                <FiSearch className="w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder={`Search ${view}...`}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="ml-2 bg-transparent border-none focus:outline-none text-sm flex-1"
-                  aria-label={`Search ${view}`}
-                />
-              </div>
-            )}
-            {view === "addagents" && (
-              <button
-                onClick={() => handleOpenAgentForm()} // Direct call like ScriptForm
-                className="group flex items-center space-x-2 px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25"
-              >
-                <FiUserPlus className="w-5 h-5" />
-                <span className="font-medium">Add New Agent</span>
-              </button>
-            )}
-            
-            {/* Mobile Search - Only show for scripts and logs */}
-            {(view === "scripts" || view === "logs") && (
+            {view === "scripts" && (
               <div className="md:hidden flex items-center bg-white rounded-lg px-3 py-2 border border-gray-200 w-full sm:w-auto">
                 <FiSearch className="w-4 h-4 text-gray-400" />
                 <input
@@ -365,16 +331,10 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
               />
             )}
 
-            {view === "logs" && <LogList searchQuery={searchQuery} />}
+          
 
             {view === "voice-soundboard" && <VoiceSoundboard />}
-            {view === "addagents" && (
-              <AgentsList 
-                key={agentsRefreshKey}
-                searchQuery={searchQuery}
-                onEditAgent={handleOpenAgentForm} // Pass the edit handler
-              />
-            )}
+           
           </div>
         </main>
       </div>
@@ -384,15 +344,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
           script={editingScript}
           onClose={handleCloseScriptForm}
           onSave={handleScriptSaved}
-        />
-      )}
-
-      {/* Add Agent Modal - Exactly like ScriptForm */}
-      {showAddAgentModal && (
-        <AddAgent
-          agent={editingAgent}
-          onClose={handleCloseAgentForm}
-          onAgentSaved={handleAgentSaved}
         />
       )}
     </div>

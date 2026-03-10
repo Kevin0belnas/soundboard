@@ -151,10 +151,13 @@ async function startServer() {
     app.use("/api/scripts", require("./routes/scripts"));
     app.use("/api/logs", require("./routes/logs"));
     app.use("/api/tts", ttsRoutes);
-    app.use("/api/users", require("./routes/users"));
-    
-    // Add leads route (MySQL Aiven)
-    app.use("/api/leads", require("./routes/leads"));
+    app.use("/api/users",require("./routes/users"));
+    app.use("/audio", express.static(path.join(__dirname, "uploads", "audio")));
+
+// Connect MongoDB
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error(err));
 
     // Health check
     app.get("/health", async (req, res) => {

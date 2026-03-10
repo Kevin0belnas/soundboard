@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { FiClock, FiUser, FiCode, FiSearch, FiRefreshCw, FiAlertCircle, FiCheckCircle, FiXCircle } from "react-icons/fi";
+import Pagination from "../../components/Pagination";
 
 export default function LogList({ searchQuery: externalSearchQuery = "" }) {
   const [logs, setLogs] = useState([]);
@@ -7,6 +8,8 @@ export default function LogList({ searchQuery: externalSearchQuery = "" }) {
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterAction, setFilterAction] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const fetchLogs = async () => {
     try {
@@ -83,6 +86,11 @@ export default function LogList({ searchQuery: externalSearchQuery = "" }) {
     
     return matchesSearch && matchesAction;
   });
+
+  // Pagination
+  const totalPages = Math.ceil(filteredLogs.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + pageSize);
 
   const handleRefresh = () => {
     fetchLogs();
@@ -198,7 +206,7 @@ export default function LogList({ searchQuery: externalSearchQuery = "" }) {
       )}
 
       {/* Logs Table */}
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+      <div className="overflow-x-auto overflow-y-auto max-h-[600px] border border-gray-200 rounded-lg">
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
@@ -210,8 +218,8 @@ export default function LogList({ searchQuery: externalSearchQuery = "" }) {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredLogs.length > 0 ? (
-              filteredLogs.map((log) => (
+            {paginatedLogs.length > 0 ? (
+              paginatedLogs.map((log) => (
                 <tr key={log._id} className="hover:bg-gray-50 transition">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center text-sm text-gray-500">
@@ -273,11 +281,19 @@ export default function LogList({ searchQuery: externalSearchQuery = "" }) {
         </table>
       </div>
 
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+      />
+
       {/* Summary Footer */}
       {filteredLogs.length > 0 && (
         <div className="mt-4 text-sm text-gray-500 flex justify-between items-center">
           <span>
-            Showing {filteredLogs.length} of {logs.length} logs
+            Showing {paginatedLogs.length} of {filteredLogs.length} logs
           </span>
           <span className="text-xs text-gray-400">
             Last updated: {new Date().toLocaleTimeString()}
