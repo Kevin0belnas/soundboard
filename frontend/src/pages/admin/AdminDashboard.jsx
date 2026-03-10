@@ -104,8 +104,8 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
   const navItems = [
     { id: "scripts", label: "Scripts", icon: FiBook },
     { id: "addagents", label: "Add Agents", icon: FiPlusCircle },
-    { id: "logs", label: "Logs", icon: FiClock },
     { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
+    { id: "logs", label: "Logs", icon: FiClock },
   ];
 
   const pageTitle =

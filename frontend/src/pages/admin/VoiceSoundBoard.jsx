@@ -1,33 +1,50 @@
-import { useRef, useState } from "react";
-
-const DEMO_SCRIPTS = [
-  {
-    id: 1,
-    title: "Greeting",
-    text: "Good morning sir, this is our daily report.",
-  },
-  {
-    id: 2,
-    title: "Update",
-    text: "We updated the product insertion flow and integrated the client side RPC.",
-  },
-  {
-    id: 3,
-    title: "Database",
-    text: "We also updated the database and verified the latest changes.",
-  },
-  {
-    id: 4,
-    title: "Closing",
-    text: "That is all for today. Thank you.",
-  },
-];
+import { useRef, useState, useEffect } from "react";
 
 export default function VoiceSoundBoard() {
+  const [scripts, setScripts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [loadingId, setLoadingId] = useState(null);
   const [customText, setCustomText] = useState("");
   const [error, setError] = useState("");
+  const [fetchError, setFetchError] = useState("");
   const audioRef = useRef(null);
+
+  // Fetch scripts from database
+  useEffect(() => {
+    fetchScripts();
+  }, []);
+
+  const fetchScripts = async () => {
+    try {
+      setLoading(true);
+      setFetchError("");
+      
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        setFetchError("Not authenticated. Please login.");
+        return;
+      }
+
+      const res = await fetch("http://localhost:5000/api/scripts", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch scripts");
+      }
+
+      const data = await res.json();
+      setScripts(data);
+    } catch (err) {
+      console.error("Error fetching scripts:", err);
+      setFetchError("Failed to load scripts");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const stopCurrentAudio = () => {
     if (audioRef.current) {
@@ -89,33 +106,69 @@ export default function VoiceSoundBoard() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="p-6 flex justify-center items-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Saved Scripts</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-2xl font-bold text-gray-800">Saved Scripts</h2>
+              <button
+                onClick={fetchScripts}
+                className="text-sm text-indigo-600 hover:text-indigo-700"
+              >
+                Refresh
+              </button>
+            </div>
             <p className="text-sm text-gray-500 mb-6">
               Click any script to generate and play the ElevenLabs voice.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {DEMO_SCRIPTS.map((script) => (
-                <button
-                  key={script.id}
-                  onClick={() => playScript(script.text, script.id)}
-                  disabled={loadingId === script.id}
-                  className="text-left rounded-xl border border-gray-200 bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-5 shadow hover:from-indigo-700 hover:to-purple-700 transition disabled:opacity-70"
-                >
-                  <div className="font-bold text-xl mb-3">
-                    {loadingId === script.id ? "Generating..." : script.title}
-                  </div>
-                  <div className="text-lg text-white/95 leading-relaxed">
-                    {script.text}
-                  </div>
-                </button>
-              ))}
-            </div>
+            {fetchError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                {fetchError}
+              </div>
+            )}
+
+            {scripts.length === 0 ? (
+              <div className="text-center py-12 bg-gray-50 rounded-xl">
+                <p className="text-gray-500">No scripts found. Create some in the admin panel.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {scripts.map((script) => (
+                  <button
+                    key={script._id}
+                    onClick={() => playScript(script.content, script._id)}
+                    disabled={loadingId === script._id}
+                    className="text-left rounded-xl border border-gray-200 bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-5 shadow hover:from-indigo-700 hover:to-purple-700 transition disabled:opacity-70"
+                  >
+                    <div className="font-bold text-xl mb-3">
+                      {loadingId === script._id ? "Generating..." : script.title}
+                    </div>
+                    <div className="text-sm text-white/90 mb-2">
+                      Type: {script.type}
+                    </div>
+                    <div className="text-lg text-white/95 leading-relaxed line-clamp-3">
+                      {script.content}
+                    </div>
+                    {script.author && (
+                      <div className="mt-3 text-xs text-white/70">
+                        By: {script.author.name || script.author.email}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
