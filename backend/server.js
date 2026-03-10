@@ -59,6 +59,10 @@ async function startServer() {
     app.use("/api/users",require("./routes/users"));
     app.use("/audio", express.static(path.join(__dirname, "uploads", "audio")));
 
+// Connect MongoDB
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error(err));
 
     // Health check
     app.get("/health", (req, res) => {

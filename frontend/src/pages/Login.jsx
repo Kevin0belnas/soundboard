@@ -32,15 +32,17 @@ export default function Login({ onLogin }) {
       localStorage.setItem("token", data.token);
       localStorage.setItem("role", data.role);
       localStorage.setItem("name", data.name);
+      localStorage.setItem("userId", data.userId);
 
       // Call parent callback
-      onLogin({ token: data.token, role: data.role, name: data.name });
-
+      onLogin({ token: data.token, role: data.role, name: data.name, userId: data.userId }); 
       // Redirect immediately based on role
       if (data.role === "admin") navigate("/admin");
       // Add other roles later
-      // if (data.role === "opener") navigate("/opener");
+      if (data.role === "opener") navigate("/opener");
       // if (data.role === "closer") navigate("/closer");
+      else if (data.role === "closer") navigate("/closer");
+      else navigate("/"); // fallback
 
     } catch (err) {
       setError("Network error. Please check if server is running.");

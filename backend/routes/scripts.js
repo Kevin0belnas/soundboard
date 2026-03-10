@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const fs = require("fs");
 const path = require("path");
 const Script = require("../models/Script");
+const Log = require("../models/Log");
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
 const AUDIO_DIR = path.join(__dirname, "..", "uploads", "audio");
@@ -120,15 +121,51 @@ async function generateAndSaveScriptAudio(scriptDoc, oldAudioFileName = "") {
 }
 
 // ---------------- GET ALL SCRIPTS ----------------
+// Helper function to create logs
+const createLog = async (req, action, details) => {
+  try {
+    const log = new Log({
+      action,
+      user: req.user.userId,
+      details,
+      ip: req.ip || req.connection.remoteAddress
+    });
+    await log.save();
+    console.log(`Log created: ${action}`);
+  } catch (error) {
+    console.error("Error creating log:", error);
+  }
+};
+
+// Get all scripts (protected)
 router.get("/", authenticateToken, async (req, res) => {
   try {
-    const scripts = await Script.find()
-      .populate("author", "name email")
+    let query = {};
+
+    if (req.user.role !== "admin") {
+      const User = require("../models/User");
+      const admins = await User.find({ role: "admin" }).select("_id");
+      const adminIds = admins.map((admin) => admin._id);
+
+      query = {
+        $or: [
+          { author: req.user.userId },
+          { author: { $in: adminIds } }
+        ]
+      };
+    }
+
+    const scripts = await Script.find(query)
+      .populate("author", "_id name email")
       .sort({ createdAt: -1 });
 
     res.json(scripts);
   } catch (error) {
     console.error("Error fetching scripts:", error);
+    await createLog(req, "error", {
+      error: error.message,
+      action: "fetch_scripts"
+    });
     res.status(500).json({ error: error.message });
   }
 });
@@ -146,10 +183,24 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Invalid user token" });
     }
 
+    let finalType = type || "general";
+
+    if (req.user.role === "closer") {
+      finalType = "closer";
+    } else if (req.user.role === "opener") {
+      finalType = "opener";
+    } 
+
+    if (req.user.role === "closer") {
+      finalType = "closer";
+    } else if (req.user.role === "opener") {
+      finalType = "opener";
+    }
+
     const script = new Script({
       title,
       content,
-      type: type || "general",
+      type: finalType,
       author: req.user.userId,
       audioStatus: "generating",
       audioUrl: "",
@@ -158,7 +209,7 @@ router.post("/", authenticateToken, async (req, res) => {
     });
 
     const savedScript = await script.save();
-    await savedScript.populate("author", "name email");
+    await savedScript.populate("author", "_id name email");
 
     res.status(201).json({
       success: true,
@@ -168,9 +219,9 @@ router.post("/", authenticateToken, async (req, res) => {
 
     try {
       await generateAndSaveScriptAudio(savedScript);
-      console.log(`✅ Audio generated for script: ${savedScript._id}`);
+      console.log(`Audio generated for script: ${savedScript._id}`);
     } catch (audioError) {
-      console.error("❌ Audio generation error:", audioError.message);
+      console.error("Audio generation error:", audioError.message);
       savedScript.audioStatus = "failed";
       savedScript.audioError = audioError.message;
       await savedScript.save();
@@ -178,12 +229,19 @@ router.post("/", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Error creating script:", error);
 
+    await createLog(req, "error", {
+      error: error.message,
+      action: "create_script",
+      body: req.body
+    });
+
     if (error.name === "ValidationError") {
       return res.status(400).json({
         error: "Validation failed",
-        details: error.errors,
+        details: error.errors
       });
     }
+
 
     res.status(500).json({ error: error.message });
   }
@@ -201,12 +259,25 @@ router.put("/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({ error: "Script not found" });
     }
 
-    if (
-      script.author.toString() !== req.user.userId &&
-      req.user.role !== "admin"
-    ) {
-      return res.status(403).json({ error: "Not authorized to edit this script" });
+    const isAuthor = script.author.toString() === req.user.userId;
+    const isAdmin = req.user.role === "admin";
+
+    if (!isAuthor && !isAdmin) {
+      await createLog(req, "unauthorized", {
+        scriptId,
+        userId: req.user.userId,
+        action: "update_script",
+        message: "User attempted to update a script they did not create"
+      });
+      return res.status(403).json({ error: "Only the creator or admin can edit this script" });
     }
+    
+    // Store old values for logging
+    const oldValues = {
+      title: script.title,
+      content: script.content,
+      type: script.type
+    };
 
     const oldAudioFileName = script.audioFileName || "";
 
@@ -219,19 +290,23 @@ router.put("/:id", authenticateToken, async (req, res) => {
       newContent !== script.content ||
       newType !== script.type;
 
+          // Update fields 
     script.title = newTitle;
     script.content = newContent;
-    script.type = newType;
-
-    if (shouldRegenerate) {
-      script.audioStatus = "generating";
-      script.audioError = "";
-      script.audioUrl = "";
-      script.audioFileName = "";
-    }
-
+    script.type = type || script.type;
+    script.updatedAt = Date.now();
+    
     await script.save();
-    await script.populate("author", "name email");
+    await script.populate("author", "_id name email");
+    
+    // CREATE LOG ENTRY
+    await createLog(req, "update_script", {
+      scriptId: script._id,
+      title: script.title,
+      oldValues,
+      newValues: { title, content, type },
+      message: `Updated script: ${script.title}`
+    });
 
     res.json({
       success: true,
@@ -245,13 +320,15 @@ router.put("/:id", authenticateToken, async (req, res) => {
 
     try {
       await generateAndSaveScriptAudio(script, oldAudioFileName);
-      console.log(`✅ Audio regenerated for script: ${script._id}`);
+      console.log(`Audio regenerated for script: ${script._id}`);
     } catch (audioError) {
-      console.error("❌ Audio regeneration failed:", audioError.message);
+      console.error("Audio regeneration failed:", audioError.message);
       script.audioStatus = "failed";
       script.audioError = audioError.message;
       await script.save();
     }
+
+    
   } catch (error) {
     console.error("Error updating script:", error);
     res.status(500).json({ error: error.message });
@@ -284,7 +361,7 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
     script.audioFileName = "";
 
     await script.save();
-    await script.populate("author", "name email");
+    await script.populate("author", "_id name email");
 
     res.json({
       success: true,
@@ -294,15 +371,22 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
 
     try {
       await generateAndSaveScriptAudio(script, oldAudioFileName);
-      console.log(`✅ Audio regenerated for script: ${script._id}`);
+      console.log(`Audio regenerated for script: ${script._id}`);
     } catch (audioError) {
-      console.error("❌ Audio regeneration failed:", audioError.message);
+      console.error("Audio regeneration failed:", audioError.message);
       script.audioStatus = "failed";
       script.audioError = audioError.message;
       await script.save();
     }
   } catch (error) {
     console.error("Error regenerating script audio:", error);
+
+    await createLog(req, "error", {
+      error: error.message,
+      scriptId: req.params.id,
+      action: "update_script"
+    });
+
     res.status(500).json({ error: error.message });
   }
 });
@@ -311,17 +395,25 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const scriptId = req.params.id;
+
     const script = await Script.findById(scriptId);
+
 
     if (!script) {
       return res.status(404).json({ error: "Script not found" });
     }
 
-    if (
-      script.author.toString() !== req.user.userId &&
-      req.user.role !== "admin"
-    ) {
-      return res.status(403).json({ error: "Not authorized to delete this script" });
+    const isAuthor = script.author.toString() === req.user.userId;
+    const isAdmin = req.user.role === "admin";
+
+    if (!isAuthor && !isAdmin) {
+      await createLog(req, "unauthorized", {
+        scriptId,
+        userId: req.user.userId,
+        action: "delete_script",
+        message: "User attempted to delete a script they did not create"
+      });
+      return res.status(403).json({ error: "Only the creator or admin can delete this script" });
     }
 
     if (script.audioFileName) {
@@ -331,11 +423,32 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       }
     }
 
+
+    const deletedScriptInfo = {
+      id: script._id,
+      title: script.title,
+      type: script.type
+    };
+
     await Script.findByIdAndDelete(scriptId);
+
+    await createLog(req, "delete_script", {
+      scriptId: deletedScriptInfo.id,
+      title: deletedScriptInfo.title,
+      type: deletedScriptInfo.type,
+      message: `Deleted script: ${deletedScriptInfo.title}`
+    });
 
     res.json({ message: "Script deleted successfully" });
   } catch (error) {
     console.error("Error deleting script:", error);
+
+    await createLog(req, "error", {
+      error: error.message,
+      scriptId: req.params.id,
+      action: "delete_script"
+    });
+
     res.status(500).json({ error: error.message });
   }
 });
