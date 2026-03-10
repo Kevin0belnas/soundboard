@@ -123,7 +123,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
       : "Click a script and let ElevenLabs speak it";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex">
+    <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex ${isMobileMenuOpen ? 'overflow-hidden' : ''}`}>
       {isMobileMenuOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -132,18 +132,18 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
       )}
 
       <aside className={`
-        fixed lg:static inset-y-0 left-0 z-20
-        bg-linear-to-b from-gray-900 via-gray-800 to-gray-900 text-white
+        fixed lg:static inset-y-0 left-0 z-50 flex flex-col
+        bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white
         transition-all duration-300 ease-in-out transform
         ${sidebarCollapsed ? 'w-20' : 'w-72'}
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        shadow-2xl
+        shadow-2xl lg:h-screen lg:sticky lg:top-0 overflow-hidden
       `}>
         <div className="h-20 flex items-center justify-between px-4 border-b border-gray-700/50">
           <div className="flex items-center space-x-3 overflow-hidden">
             {!sidebarCollapsed && (
               <div className="flex flex-col">
-                <span className="text-3xl font-bold bg-linear-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent font-serif">
+                <span className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent font-serif">
                   Soundboard
                 </span>
               </div>
@@ -168,7 +168,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
         <div className="p-4 border-b border-gray-700/50">
           <div className="flex items-center space-x-4">
             <div className="relative">
-              <div className="w-12 h-12 bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center text-white font-semibold text-lg shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center text-white font-semibold text-lg shadow-lg">
                 {userInitial}
               </div>
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-gray-800"></div>
@@ -199,7 +199,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
                   ${sidebarCollapsed ? 'px-2' : 'px-4'}
                   py-3 rounded-xl transition-all duration-200
                   ${isActive 
-                    ? 'bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25' 
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25' 
                     : 'text-gray-300 hover:bg-gray-700/50 hover:text-white'
                   }
                 `}
@@ -235,7 +235,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
         )}
       </aside>
 
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-10">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-20">
@@ -249,10 +249,10 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
                 </button>
 
                 <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                     {pageTitle}
                   </h1>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-xs sm:text-sm text-gray-500">
                     {pageSubtitle}
                   </p>
                 </div>
@@ -293,7 +293,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="group flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-linear-to-r from-red-500 to-red-600 rounded-lg hover:from-red-600 hover:to-red-700 transition shadow-lg shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="group flex items-center space-x-2 px-3 sm:px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-lg hover:from-red-600 hover:to-red-700 transition shadow-lg shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Logout"
                 >
                   <FiLogOut className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -311,7 +311,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
             {view === "scripts" && (
               <button
                 onClick={() => handleOpenScriptForm()}
-                className="group flex items-center space-x-2 px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25"
+                className="group flex items-center space-x-2 px-3 sm:px-4 py-2 text-sm sm:text-base bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25"
               >
                 <span className="font-medium">New Script</span>
               </button>
@@ -332,10 +332,10 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
             )}
             {view === "addagents" && (
               <button
-                onClick={() => handleOpenAgentForm()} // Direct call like ScriptForm
-                className="group flex items-center space-x-2 px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25"
+                onClick={() => handleOpenAgentForm()}
+                className="group flex items-center space-x-2 px-3 sm:px-4 py-2 text-sm sm:text-base bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25"
               >
-                <FiUserPlus className="w-5 h-5" />
+                <FiUserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span className="font-medium">Add New Agent</span>
               </button>
             )}

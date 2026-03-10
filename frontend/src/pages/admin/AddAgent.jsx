@@ -93,7 +93,7 @@ export default function AddAgent({ agent, onClose, onAgentSaved }) {
   // If onClose is provided, render as modal, otherwise render as normal form
   if (onClose) {
     return createPortal(
-      <div className="fixed inset-0 z-100 overflow-y-auto">
+      <div className="fixed inset-0 z-50 overflow-y-auto">
         {/* Backdrop */}
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
@@ -107,7 +107,7 @@ export default function AddAgent({ agent, onClose, onAgentSaved }) {
             <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-auto">
               {/* Header */}
               <div className="flex justify-between items-center p-6 border-b border-gray-200">
-                <h2 className="text-xl font-bold bg-linear-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                   {isEditMode ? "Edit Agent" : "Add New Agent"}
                 </h2>
                 <button
@@ -216,7 +216,7 @@ export default function AddAgent({ agent, onClose, onAgentSaved }) {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
