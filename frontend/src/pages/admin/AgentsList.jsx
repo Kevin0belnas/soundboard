@@ -114,7 +114,7 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
         <div className="flex items-center space-x-3">
-          <h2 className="text-xl font-semibold text-gray-800">Agents Management</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Agents Management</h2>
           <button
             onClick={handleRefresh}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition"
@@ -134,14 +134,14 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
               placeholder="Search agents..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-64"
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-64 text-sm"
             />
           </div>
           
           <select
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
           >
             {roles.map(role => (
               <option key={role} value={role}>
@@ -160,7 +160,7 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
       )}
 
       {/* Agents Table */} 
-      <div className="overflow-x-auto overflow-y-auto max-h-[600px] border border-gray-200 rounded-lg">
+      <div className="overflow-x-auto border border-gray-200 rounded-lg">
         {loading ? (
           <div className="p-8 text-center">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent"></div>
@@ -174,7 +174,7 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
             <h3 className="text-lg font-medium text-gray-900 mb-2">No agents yet</h3>
             <p className="text-gray-500 mb-6">Get started by adding your first agent</p>
             <button
-              onClick={() => onEditAgent(null)} // Pass null for new agent
+              onClick={() => onEditAgent(null)}
               className="inline-flex items-center space-x-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition shadow-lg"
             >
               <FiUserPlus className="w-5 h-5" />
@@ -182,7 +182,6 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
             </button>
           </div>
         ) : showNoSearchResults ? (
-          // No Search Results State
           <div className="text-center py-20">
             <FiUserPlus className="w-12 h-12 mx-auto mb-3 text-gray-400" />
             <p className="text-lg font-medium text-gray-900 mb-2">No agents found</p>
@@ -193,70 +192,73 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
             </p>
           </div>
         ) : (
-          // Agents Table - Data Available
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Login</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedAgents.map((agent) => (
-                <tr key={agent._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="shrink-0 h-10 w-10 bg-linear-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
-                        {agent.name?.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{agent.name}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {agent.email}
-                  </td> 
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      agent.role === 'admin' ? 'bg-red-100 text-red-800' :
-                      agent.role === 'opener' ? 'bg-green-100 text-green-800' :
-                      'bg-purple-100 text-purple-800'
-                    }`}>
-                      {agent.role?.charAt(0).toUpperCase() + agent.role?.slice(1)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {agent.lastLogin ? new Date(agent.lastLogin).toLocaleDateString() : 'Never'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <button
-                      onClick={() => handleEditAgent(agent)}
-                      className="text-indigo-600 hover:text-indigo-900 mr-3 transition"
-                      title="Edit agent"
-                    >
-                      <FiEdit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteAgent(agent._id)}
-                      className="text-red-600 hover:text-red-900 transition"
-                      title="Delete agent"
-                    >
-                      <FiTrash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Agent</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Email</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Role</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden md:table-cell">Joined</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">Last Login</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginatedAgents.map((agent) => (
+                  <tr key={agent._id} className="hover:bg-gray-50">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="shrink-0 h-8 w-8 sm:h-10 sm:w-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                          {agent.name?.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="ml-2 sm:ml-4">
+                          <div className="text-xs sm:text-sm font-medium text-gray-900">{agent.name}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                      <span className="hidden sm:inline">{agent.email}</span>
+                      <span className="sm:hidden">{agent.email.split('@')[0]}</span>
+                    </td> 
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        agent.role === 'admin' ? 'bg-red-100 text-red-800' :
+                        agent.role === 'opener' ? 'bg-green-100 text-green-800' :
+                        'bg-purple-100 text-purple-800'
+                      }`}>
+                        {agent.role?.charAt(0).toUpperCase() + agent.role?.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden md:table-cell">
+                      {agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden lg:table-cell">
+                      {agent.lastLogin ? new Date(agent.lastLogin).toLocaleDateString() : 'Never'}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleEditAgent(agent)}
+                          className="text-indigo-600 hover:text-indigo-900 transition"
+                          title="Edit agent"
+                        >
+                          <FiEdit2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAgent(agent._id)}
+                          className="text-red-600 hover:text-red-900 transition"
+                          title="Delete agent"
+                        >
+                          <FiTrash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

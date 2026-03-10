@@ -295,7 +295,7 @@ export default function ScriptList({
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+            <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
               Script Library
             </h2>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">
@@ -528,7 +528,7 @@ export default function ScriptList({
                 </div>
               </div>
 
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-linear-to-r from-indigo-500 to-purple-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-b-lg sm:rounded-b-xl"></div>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-b-lg sm:rounded-b-xl"></div>
             </div>
             ))}
           </div>
