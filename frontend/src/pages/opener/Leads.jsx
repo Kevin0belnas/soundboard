@@ -730,7 +730,7 @@ export default function Leads() {
 
       {/* Script Modal */}
       {showScriptModal && selectedLead && (
-        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black z-[9999] flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-xl max-w-6xl w-full min-h-[90vh] max-h-[90vh] my-auto flex flex-col shadow-2xl">
             {/* Header */}
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-white flex-shrink-0">
