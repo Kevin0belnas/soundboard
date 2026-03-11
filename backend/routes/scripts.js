@@ -391,6 +391,84 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
   }
 });
 
+// ---------------- GENERATE TEMPORARY PERSONALIZED AUDIO ----------------
+router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
+  try {
+    const { text, scriptId } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: "Text is required" });
+    }
+
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const voiceId = process.env.ELEVENLABS_VOICE_ID;
+
+    if (!apiKey || !voiceId) {
+      return res.status(500).json({ error: "ElevenLabs configuration missing" });
+    }
+
+    ensureAudioDir();
+    const tempDir = path.join(__dirname, "..", "uploads", "temp");
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "xi-api-key": apiKey,
+          Accept: "audio/mpeg",
+        },
+        body: JSON.stringify({
+          text: text.trim(),
+          model_id: "eleven_multilingual_v2",
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const rawError = await response.text();
+      throw new Error(rawError || "ElevenLabs request failed");
+    }
+
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+
+    // Save to temp directory with timestamp
+    const timestamp = Date.now();
+    const fileName = `temp_${scriptId || 'audio'}_${timestamp}.mp3`;
+    const filePath = path.join(tempDir, fileName);
+
+    fs.writeFileSync(filePath, audioBuffer);
+
+    // Clean up old temp files 
+    const files = fs.readdirSync(tempDir);
+    const oneHourAgo = Date.now() - (60 * 60 * 1000);
+    files.forEach(file => {
+      const filePath = path.join(tempDir, file);
+      const stats = fs.statSync(filePath);
+      if (stats.mtimeMs < oneHourAgo) {
+        fs.unlinkSync(filePath);
+      }
+    });
+
+    res.json({
+      success: true,
+      audioUrl: `/temp/${fileName}`,
+      message: "Personalized audio generated successfully"
+    });
+
+  } catch (error) {
+    console.error("Error generating temporary audio:", error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || "Failed to generate audio" 
+    });
+  }
+});
+
 // ---------------- DELETE SCRIPT ----------------
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
