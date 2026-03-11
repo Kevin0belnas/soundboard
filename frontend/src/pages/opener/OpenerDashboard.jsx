@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom"; 
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation, Routes, Route } from "react-router-dom"; 
 import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
 import VoiceSoundboard from "../../components/shared/VoiceSoundBoard";
+import Leads from "./Leads";
 import {
   FiBook,
   FiLogOut,
@@ -13,17 +14,21 @@ import {
   FiSearch,
   FiRefreshCw,
   FiVolume2,
+  FiUserCheck,
 } from "react-icons/fi";
 
-export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
-  const [view, setView] = useState(() => {
-    const path = window.location.pathname;
-    if (path.includes("/opener/scripts")) return "scripts";
-    if (path.includes("/opener/voice-soundboard")) return "voice-soundboard";
+// Separate component for Scripts view
+function ScriptsView({ searchQuery, onEditScript, refreshKey }) {
+  return (
+    <ScriptList
+      key={refreshKey}
+      searchQuery={searchQuery}
+      onEditScript={onEditScript}
+    />
+  );
+}
 
-    return initialView;
-  });
-
+export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -36,9 +41,17 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Handle initial redirect based on initialView prop
+  useEffect(() => {
+    // If at base opener path, redirect to the initialView
+    if (location.pathname === "/opener" || location.pathname === "/opener/") {
+      navigate(`/opener/${initialView}`, { replace: true });
+    }
+  }, [location.pathname, navigate, initialView]);
 
   const handleViewChange = (newView) => {
-    setView(newView);
     setIsMobileMenuOpen(false);
     navigate(`/opener/${newView}`);
   };
@@ -47,7 +60,7 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
     setIsLoggingOut(true);
     localStorage.clear();
     if (onLogout) onLogout();
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   const handleRefresh = () => {
@@ -71,23 +84,39 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
   };
 
   const userName = localStorage.getItem("name") || "Opener User";
+  const userRole = localStorage.getItem("role") || "opener";
   const userInitial = userName.charAt(0).toUpperCase();
 
   const navItems = [
+    { id: "leads", label: "My Leads", icon: FiUserCheck },
     { id: "scripts", label: "Scripts", icon: FiBook },
     { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
   ];
 
-  const pageTitle =
-    view === "scripts" ? "Script Management" : "Voice Soundboard";
+  // Get current view from URL path
+  const getCurrentView = () => {
+    const path = location.pathname;
+    if (path.includes("/opener/scripts")) return "scripts";
+    if (path.includes("/opener/voice-soundboard")) return "voice-soundboard";
+    if (path.includes("/opener/leads")) return "leads";
+    return initialView; // Fallback to initialView
+  };
 
-  const pageSubtitle =
-    view === "scripts"
-      ? "Create, edit, and manage your automation scripts"
-      : "Click a script and let ElevenLabs speak it";
+  const currentView = getCurrentView();
+
+  const pageTitle = 
+    currentView === "scripts" ? "Script Management" :
+    currentView === "voice-soundboard" ? "Voice Soundboard" :
+    "My Leads";
+
+  const pageSubtitle = 
+    currentView === "scripts" ? "Create, edit, and manage your automation scripts" :
+    currentView === "voice-soundboard" ? "Click a script and let ElevenLabs speak it" :
+    "View and manage leads assigned to you";
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex ${isMobileMenuOpen ? 'overflow-hidden' : ''}`}>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex">
+      {/* Mobile menu overlay */}
       {isMobileMenuOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
@@ -95,21 +124,23 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
         />
       )}
 
+      {/* Sidebar */}
       <aside
         className={`
-        fixed lg:static inset-y-0 left-0 z-50 flex flex-col
-        bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white
-        transition-all duration-300 ease-in-out transform
-        ${sidebarCollapsed ? "w-20" : "w-72"}
-        ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-        shadow-2xl lg:h-screen lg:sticky lg:top-0 overflow-hidden
-      `}
+          fixed lg:static inset-y-0 left-0 z-50
+          bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white
+          transition-all duration-300 ease-in-out transform
+          ${sidebarCollapsed ? "w-20" : "w-72"}
+          ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+          shadow-2xl
+        `}
       >
+        {/* Sidebar header */}
         <div className="h-20 flex items-center justify-between px-4 border-b border-gray-700/50">
           <div className="flex items-center space-x-3 overflow-hidden">
             {!sidebarCollapsed && (
               <div className="flex flex-col">
-                <span className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent font-serif">
+                <span className="text-3xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent font-serif">
                   Soundboard
                 </span>
               </div>
@@ -131,6 +162,7 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
           </button>
         </div>
 
+        {/* User info */}
         <div className="p-4 border-b border-gray-700/50">
           <div className="flex items-center space-x-4">
             <div className="relative">
@@ -144,17 +176,18 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
                 <p className="font-medium truncate">{userName}</p>
                 <p className="text-xs text-gray-400 flex items-center">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
-                  Opener
+                  {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
                 </p>
               </div>
             )}
           </div>
         </div>
 
+        {/* Navigation */}
         <nav className="p-4 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = view === item.id;
+            const isActive = currentView === item.id;
 
             return (
               <button
@@ -175,21 +208,20 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
                 <div
                   className={`flex items-center ${sidebarCollapsed ? "justify-center" : "space-x-3"}`}
                 >
-                  <Icon
-                    className={`w-5 h-5 shrink-0 ${isActive ? "animate-pulse" : ""}`}
-                  />
+                  <Icon className="w-5 h-5 shrink-0" />
                   {!sidebarCollapsed && (
                     <>
                       <span className="text-sm font-medium flex-1 text-left">
                         {item.label}
                       </span>
                       {isActive && (
-                        <FiChevronRight className="w-4 h-4 animate-pulse" />
+                        <FiChevronRight className="w-4 h-4" />
                       )}
                     </>
                   )}
                 </div>
 
+                {/* Tooltip for collapsed sidebar */}
                 {sidebarCollapsed && (
                   <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
                     {item.label}
@@ -200,6 +232,7 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
           })}
         </nav>
 
+        {/* Version info */}
         {!sidebarCollapsed && (
           <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700/50">
             <div className="text-xs text-gray-400">
@@ -210,8 +243,10 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
         )}
       </aside>
 
+      {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen">
-        <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-10">
+        {/* Header */}
+        <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-30">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-20">
               <div className="flex items-center space-x-4">
@@ -224,24 +259,25 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
                 </button>
 
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                     {pageTitle}
                   </h1>
-                  <p className="text-xs sm:text-sm text-gray-500">{pageSubtitle}</p>
+                  <p className="text-sm text-gray-500">{pageSubtitle}</p>
                 </div>
               </div>
 
               <div className="flex items-center space-x-3">
-                {view !== "voice-soundboard" && (
+                {/* Search bar - only for scripts view */}
+                {currentView === "scripts" && (
                   <div className="hidden md:flex items-center bg-gray-100 rounded-lg px-3 py-2">
                     <FiSearch className="w-4 h-4 text-gray-400" />
                     <input
                       type="text"
-                      placeholder={`Search ${view}...`}
+                      placeholder="Search scripts..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="ml-2 bg-transparent border-none focus:outline-none text-sm w-48"
-                      aria-label={`Search ${view}`}
+                      aria-label="Search scripts"
                     />
                   </div>
                 )}
@@ -263,12 +299,13 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
                   aria-label="Notifications"
                 >
                   <FiBell className="w-5 h-5" />
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
                 </button>
 
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="group flex items-center space-x-2 px-3 sm:px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-lg hover:from-red-600 hover:to-red-700 transition shadow-lg shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="group flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-lg hover:from-red-600 hover:to-red-700 transition shadow-lg shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Logout"
                 >
                   <FiLogOut className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -281,46 +318,49 @@ export default function OpenerDashboard({ onLogout, initialView = "scripts" }) {
           </div>
         </header>
 
+        {/* Page content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
-            {view === "scripts" && (
+          {/* Action buttons - only for scripts view */}
+          {currentView === "scripts" && (
+            <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
               <button
                 onClick={() => handleOpenScriptForm()}
-                className="group flex items-center space-x-2 px-3 sm:px-4 py-2 text-sm sm:text-base bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25"
+                className="group flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25"
               >
                 <span className="font-medium">New Script</span>
               </button>
-            )}
 
-            {view === "scripts" && (
+              {/* Mobile search */}
               <div className="md:hidden flex items-center bg-white rounded-lg px-3 py-2 border border-gray-200 w-full sm:w-auto">
                 <FiSearch className="w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder={`Search ${view}...`}
+                  placeholder="Search scripts..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="ml-2 bg-transparent border-none focus:outline-none text-sm flex-1"
-                  aria-label={`Search ${view}`}
+                  aria-label="Search scripts"
                 />
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
+          {/* Content area */}
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-            {view === "scripts" && (
-              <ScriptList
-                key={refreshKey}
+            {currentView === "scripts" && (
+              <ScriptsView 
                 searchQuery={searchQuery}
                 onEditScript={handleOpenScriptForm}
+                refreshKey={refreshKey}
               />
             )}
-
-            {view === "voice-soundboard" && <VoiceSoundboard />}
+            {currentView === "voice-soundboard" && <VoiceSoundboard />}
+            {currentView === "leads" && <Leads />}
           </div>
         </main>
       </div>
 
+      {/* Script Form Modal */}
       {showScriptModal && (
         <ScriptForm
           script={editingScript}

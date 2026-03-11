@@ -125,6 +125,15 @@ function App() {
           }
         />
 
+        <Route
+          path="/admin/contacts"
+          element={
+            <ProtectedRoute allowedRole="admin">
+              <AdminDashboard onLogout={handleLogout} initialView="contacts" />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Opener Routes */}
         <Route
           path="/opener"
@@ -143,6 +152,26 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/opener/leads"
+          element={
+            <ProtectedRoute allowedRole="opener">
+              <OpenerDashboard onLogout={handleLogout} initialView="leads" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/opener/scripts"
+          element={
+            <ProtectedRoute allowedRole="opener">
+              <OpenerDashboard onLogout={handleLogout} initialView="scripts" />
+            </ProtectedRoute>
+          }
+        />
+
+        
 
         {/* Closer Routes */}
         <Route
@@ -168,6 +197,15 @@ function App() {
           element={
             <ProtectedRoute allowedRole="closer">
               <CloserDashboard onLogout={handleLogout} initialView="voice-soundboard" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/closer/leads"
+          element={
+            <ProtectedRoute allowedRole="closer">
+              <CloserDashboard onLogout={handleLogout} initialView="leads" />
             </ProtectedRoute>
           }
         />
