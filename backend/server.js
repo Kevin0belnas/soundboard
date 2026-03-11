@@ -154,6 +154,7 @@ async function startServer() {
     app.use("/api/tts", ttsRoutes);
     app.use("/api/users",require("./routes/users"));
     app.use("/audio", express.static(path.join(__dirname, "uploads", "audio")));
+    app.use("/temp", express.static(path.join(__dirname, "uploads", "temp")));
     app.use("/api/contacts", require("./routes/contacts")); // New contacts routes
 
 // Connect MongoDB
