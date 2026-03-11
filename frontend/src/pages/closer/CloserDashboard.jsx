@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
 import VoiceSoundboard from "../../components/shared/VoiceSoundBoard";
+import Leads from "./Leads";
 import { 
   FiBook,  
   FiLogOut, 
@@ -15,12 +16,13 @@ import {
   FiVolume2, 
 } from "react-icons/fi";
 
-export default function CloserDashboard({ onLogout, initialView = "scripts" }) {
+export default function CloserDashboard({ onLogout, initialView = "leads" }) {
   const [view, setView] = useState(() => {
     const path = window.location.pathname;
     if (path.includes("/closer/scripts")) return "scripts";
     if (path.includes("/closer/voice-soundboard")) return "voice-soundboard";
-    
+    if (path.includes("/closer/leads")) return "leads";
+
     return initialView;
   });
 
@@ -32,11 +34,8 @@ export default function CloserDashboard({ onLogout, initialView = "scripts" }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   const [showScriptModal, setShowScriptModal] = useState(false);
-  const [showAddAgentModal, setShowAddAgentModal] = useState(false); // Add this
   const [editingScript, setEditingScript] = useState(null);
-  const [editingAgent, setEditingAgent] = useState(null); // Add this
   const [refreshKey, setRefreshKey] = useState(0);
-  const [agentsRefreshKey, setAgentsRefreshKey] = useState(0); // Add this for agents list refresh
   
   const navigate = useNavigate();
 
@@ -73,29 +72,14 @@ export default function CloserDashboard({ onLogout, initialView = "scripts" }) {
     setRefreshKey((prev) => prev + 1);
   };
 
-  // Agent modal handlers - exactly like script form
-  const handleOpenAgentForm = (agent = null) => {
-    setEditingAgent(agent);
-    setShowAddAgentModal(true);
-  };
-
-  const handleCloseAgentForm = () => {
-    setShowAddAgentModal(false);
-    setEditingAgent(null);
-  };
-
-  const handleAgentSaved = () => {
-    setAgentsRefreshKey(prev => prev + 1); // Refresh the agents list
-    setShowAddAgentModal(false);
-    setEditingAgent(null);
-  };
-
   const userName = localStorage.getItem("name") || "Admin User";
   const userInitial = userName.charAt(0).toUpperCase();
 
   const navItems = [
+    { id: "leads", label: "Leads", icon: FiBook },
     { id: "scripts", label: "Scripts", icon: FiBook },
     { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
+    
   ];
 
   const pageTitle =
@@ -103,6 +87,8 @@ export default function CloserDashboard({ onLogout, initialView = "scripts" }) {
       ? "Script Management"
       : view === "logs"
       ? "Activity Logs"
+      : view === "leads"
+      ? "Lead Management"
       : "Voice Soundboard";
 
   const pageSubtitle =
@@ -110,6 +96,8 @@ export default function CloserDashboard({ onLogout, initialView = "scripts" }) {
       ? "Create, edit, and manage your automation scripts"
       : view === "logs"
       ? "Monitor and analyze system activity"
+      : view === "leads"
+      ? "Manage your leads effectively"
       : "Click a script and let ElevenLabs speak it";
 
   return (
@@ -334,6 +322,7 @@ export default function CloserDashboard({ onLogout, initialView = "scripts" }) {
           
 
             {view === "voice-soundboard" && <VoiceSoundboard />}
+            {view === "leads" && <Leads />}
            
           </div>
         </main>

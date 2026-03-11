@@ -93,6 +93,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const { testConnection } = require("./config/mysqldb"); // Import your MySQL config
 const ttsRoutes = require("./routes/tts");
+const User = require('./models/User'); // Add this line
 
 const app = express();
 
@@ -153,6 +154,7 @@ async function startServer() {
     app.use("/api/tts", ttsRoutes);
     app.use("/api/users",require("./routes/users"));
     app.use("/audio", express.static(path.join(__dirname, "uploads", "audio")));
+    app.use("/api/contacts", require("./routes/contacts")); // New contacts routes
 
 // Connect MongoDB
 mongoose.connect(process.env.MONGO_URI)

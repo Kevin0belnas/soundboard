@@ -6,6 +6,7 @@ import ScriptForm from "../../components/shared/ScriptForm";
 import VoiceSoundboard from "../../components/shared/VoiceSoundBoard";
 import AgentsList from "./AgentsList";
 import AddAgent from "./AddAgent"; 
+import Contacts from "./Contacts";
 import { 
   FiBook, 
   FiClock, 
@@ -28,6 +29,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
     if (path.includes("/admin/addagents")) return "addagents";
     if (path.includes("/admin/logs")) return "logs";
     if (path.includes("/admin/voice-soundboard")) return "voice-soundboard";
+    if (path.includes("/admin/contacts")) return "contacts";
     
     return initialView;
   });
@@ -106,6 +108,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
     { id: "addagents", label: "Add Agents", icon: FiPlusCircle },
     { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
     { id: "logs", label: "Logs", icon: FiClock },
+    { id: "contacts", label: "Contacts", icon: FiUserPlus },
   ];
 
   const pageTitle =
@@ -340,6 +343,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
               </button>
             )}
             
+            
             {/* Mobile Search - Only show for scripts and logs */}
             {(view === "scripts" || view === "logs") && (
               <div className="md:hidden flex items-center bg-white rounded-lg px-3 py-2 border border-gray-200 w-full sm:w-auto">
@@ -375,6 +379,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
                 onEditAgent={handleOpenAgentForm} // Pass the edit handler
               />
             )}
+            {view === "contacts" && <Contacts />}
           </div>
         </main>
       </div>
