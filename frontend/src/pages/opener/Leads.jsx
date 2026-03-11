@@ -14,10 +14,11 @@ import {
   FiStar,
   FiFlag,
   FiMessageSquare,
-  FiThumbsDown,
-  FiUsers,
+  FiThumbsDown, 
   FiX,
   FiSend,
+  FiVolume2,
+  FiCopy,
 } from "react-icons/fi";
 import axios from "axios";
 
@@ -55,6 +56,15 @@ export default function Leads() {
   const [selectedTargetAgent, setSelectedTargetAgent] = useState("");
   const [transferReason, setTransferReason] = useState("");
   const [loadingAgents, setLoadingAgents] = useState(false);
+
+  const [showScriptModal, setShowScriptModal] = useState(false);
+  const [scripts, setScripts] = useState([]);
+  const [loadingScripts, setLoadingScripts] = useState(false);
+  const [selectedScript, setSelectedScript] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [playingScriptId, setPlayingScriptId] = useState(null);
+  const [audioElement, setAudioElement] = useState(null);
+  const [generatingAudio, setGeneratingAudio] = useState(false);
   
   // Get current user info
   const userId = localStorage.getItem("userId");
@@ -77,6 +87,48 @@ export default function Leads() {
   useEffect(() => {
     filterLeadsBySearch();
   }, [searchQuery, leads]);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (showScriptModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showScriptModal]);
+
+  const fetchScripts = async () => {
+    setLoadingScripts(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/scripts", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        // Filter to show only admin and opener scripts
+        const scriptsArray = Array.isArray(data) 
+          ? data.filter(script => script.type === 'admin' || script.type === 'opener')
+          : [];
+        setScripts(scriptsArray);
+        // Set first script as selected by default
+        if (scriptsArray.length > 0) {
+          setSelectedScript(scriptsArray[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching scripts:", error);
+    } finally {
+      setLoadingScripts(false);
+    }
+  };
 
   const fetchLeads = async () => {
     setIsLoading(true);
@@ -120,6 +172,8 @@ export default function Leads() {
       setIsLoading(false);
     }
   };
+
+  console.log("Leads data:", filteredLeads);
 
   const fetchAvailableAgents = async () => {
     setLoadingAgents(true);
@@ -240,6 +294,87 @@ export default function Leads() {
       }
     } catch (error) {
       showNotification("error", "Failed to add comment", error);
+    }
+  };
+
+  const handleCopyScript = () => {
+    const textToCopy = selectedScript.content
+      .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
+      .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
+      .replace(/\[Your Name\]/g, selectedScript?.author?.name || "User");
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopied(true);
+      showNotification("success", "Script copied to clipboard!");
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      showNotification("error", "Failed to copy script");
+    });
+  };
+
+  const handlePlayAudio = async () => {
+    if (!selectedScript) return;
+    
+    if (playingScriptId === selectedScript._id && audioElement) {
+      audioElement.pause();
+      audioElement.currentTime = 0;
+      setPlayingScriptId(null);
+      setAudioElement(null);
+      return;
+    }
+    
+    // Stop any currently playing audio
+    if (audioElement) {
+      audioElement.pause();
+      audioElement.currentTime = 0;
+      setAudioElement(null);
+    }
+    
+    // Get replaced content
+    const replacedContent = selectedScript.content
+      .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
+      .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
+      .replace(/\[Your Name\]/g, selectedScript?.author?.name || "User");
+    
+    setGeneratingAudio(true);
+    
+    try {
+      // Generate audio with personalized content
+      const response = await api.post('/scripts/generate-audio-temp', {
+        text: replacedContent,
+        scriptId: selectedScript._id
+      });
+      
+      if (response.data.success && response.data.audioUrl) {
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const audioUrl = response.data.audioUrl.startsWith('http') 
+          ? response.data.audioUrl 
+          : `${baseUrl.replace('/api', '')}${response.data.audioUrl}`;
+        
+        const audio = new Audio(audioUrl);
+        
+        audio.play().catch(err => {
+          console.error('Audio play error:', err);
+          showNotification("error", "Failed to play audio");
+          setPlayingScriptId(null);
+        });
+        
+        setPlayingScriptId(selectedScript._id);
+        setAudioElement(audio);
+        
+        audio.onended = () => {
+          setPlayingScriptId(null);
+          setAudioElement(null);
+        };
+      } else {
+        showNotification("error", "Failed to generate audio");
+      }
+    } catch (error) {
+      console.error('Audio generation error:', error);
+      showNotification("error", "Failed to generate personalized audio");
+    } finally {
+      setGeneratingAudio(false);
     }
   };
 
@@ -398,6 +533,8 @@ export default function Leads() {
       </div>
     </div>
   );
+
+   
 
   return (
     <div className="space-y-6">
@@ -591,6 +728,150 @@ export default function Leads() {
         </div>
       )}
 
+      {/* Script Modal */}
+      {showScriptModal && selectedLead && (
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl max-w-6xl w-full min-h-[90vh] max-h-[90vh] my-auto flex flex-col shadow-2xl">
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-white flex-shrink-0">
+              <div>
+                <h3 className="text-lg font-semibold text-black">Scripts for {selectedLead.name}</h3>
+                <p className="text-sm text-gray-500 mt-1">Book: "{selectedLead.book_title}"</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowScriptModal(false);
+                  setSelectedScript(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="flex-1 flex" style={{ minHeight: 0, overflow: 'hidden' }}>
+              {loadingScripts ? (
+                <div className="flex justify-center items-center py-12 w-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : scripts.length === 0 ? (
+                <div className="text-center py-12 w-full">
+                  <FiBook className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500">No scripts available</p>
+                </div>
+              ) : (
+                <>
+                  {/* Left Column */}
+                  <div className="w-1/3 border-r border-gray-200 flex flex-col" style={{ minHeight: 0, overflow: 'hidden' }}>
+                    <div className="p-4 border-b border-gray-200 flex-shrink-0">
+                      <h1 className="text-sm font-semibold text-gray-900">Select Script Template</h1>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                      {scripts.map((script) => (
+                        <button
+                          key={script._id}
+                          onClick={() => setSelectedScript(script)}
+                          className={`w-full text-left p-3 rounded-lg border transition ${
+                            selectedScript?._id === script._id
+                              ? 'border-indigo-500 bg-indigo-50'
+                              : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
+                          } ${
+                            playingScriptId === script._id ? 'ring ring-green-400' : ''
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center flex-1">
+                              {playingScriptId === script._id && (
+                                <FiVolume2 className="h-4 w-4 text-green-600 mr-2 animate-pulse" />
+                              )}
+                              <h4 className="font-medium text-sm text-gray-900 flex-1">{script.title}</h4>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div className="flex-1 flex flex-col" style={{ minHeight: 0, overflow: 'hidden' }}>
+                    {selectedScript ? (
+                      <>
+                        {/* Script Header */}
+                        <div className="p-6 border-b border-gray-200 flex-shrink-0">
+                          <div className="flex items-start justify-between mb-2">
+                            <h3 className="text-xl font-semibold text-gray-900">{selectedScript.title}</h3>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={handlePlayAudio}
+                                disabled={generatingAudio}
+                                className={`flex items-center px-3 py-1.5 text-sm font-medium rounded-lg transition ${
+                                  playingScriptId === selectedScript._id
+                                    ? 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                                    : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                title={playingScriptId === selectedScript._id ? "Stop audio" : "Play personalized audio"}
+                              >
+                                <FiVolume2 className={`h-4 w-4 mr-1.5 ${playingScriptId === selectedScript._id ? 'animate-pulse' : ''}`} />
+                                {generatingAudio ? "Generating..." : playingScriptId === selectedScript._id ? "Stop" : "Play"}
+                              </button>
+                              <button
+                                onClick={handleCopyScript}
+                                className="flex items-center px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition"
+                                title="Copy script to clipboard"
+                              >
+                                <FiCopy className="h-4 w-4 mr-1.5" />
+                                {copied ? "Copied!" : "Copy"}
+                              </button>
+                            </div>
+                          </div>
+                          {selectedScript.author && (
+                            <p className="text-sm text-gray-500">
+                              Created by {selectedScript.author.name}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Script Content */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                          <div className="prose max-w-none">
+                            <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                              {selectedScript.content
+                                .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
+                                .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
+                                .replace(/\[Your Name\]/g, selectedScript?.author?.name || "User")}
+                            </p>
+                          </div>
+
+                          {selectedScript.audioStatus === 'generating' && (
+                            <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
+                              Audio is being generated...
+                            </div>
+                          )}
+
+                          {selectedScript.audioStatus === 'failed' && (
+                            <div className="mt-6 p-4 bg-red-50 rounded-lg text-sm text-red-700">
+                              Audio generation failed: {selectedScript.audioError}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-gray-400">
+                        <div className="text-center">
+                          <FiBook className="h-12 w-12 mx-auto mb-3" />
+                          <p>Select a script to view details</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header with Tabs */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
@@ -761,7 +1042,15 @@ export default function Leads() {
                 </tr>
               ) : (
                 filteredLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-gray-50">
+                  <tr 
+                    key={lead.id} 
+                    onClick={() => {
+                      setSelectedLead(lead);
+                      setShowScriptModal(true);
+                      fetchScripts();
+                    }}
+                    className="hover:bg-gray-50 cursor-pointer"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className={`flex-shrink-0 h-10 w-10 bg-gradient-to-br ${

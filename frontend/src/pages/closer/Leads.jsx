@@ -18,6 +18,7 @@ import {
   FiUsers,
   FiX,
   FiSend,
+  FiVolume2,
 } from "react-icons/fi";
 import axios from "axios";
 
@@ -55,6 +56,10 @@ export default function Leads() {
   const [selectedTargetAgent, setSelectedTargetAgent] = useState("");
   const [transferReason, setTransferReason] = useState("");
   const [loadingAgents, setLoadingAgents] = useState(false);
+  const [showScriptModal, setShowScriptModal] = useState(false);
+  const [scripts, setScripts] = useState([]);
+  const [loadingScripts, setLoadingScripts] = useState(false);
+  const [selectedScript, setSelectedScript] = useState(null);
   
   // Get current user info
   const userId = localStorage.getItem("userId");
@@ -77,6 +82,36 @@ export default function Leads() {
   useEffect(() => {
     filterLeadsBySearch();
   }, [searchQuery, leads]);
+
+  const fetchScripts = async () => {
+    setLoadingScripts(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/scripts", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        // Filter to show only admin and closer scripts
+        const scriptsArray = Array.isArray(data) 
+          ? data.filter(script => script.type === 'admin' || script.type === 'closer')
+          : [];
+        setScripts(scriptsArray);
+        // Set first script as selected by default
+        if (scriptsArray.length > 0) {
+          setSelectedScript(scriptsArray[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching scripts:", error);
+    } finally {
+      setLoadingScripts(false);
+    }
+  };
 
   const fetchLeads = async () => {
     setIsLoading(true);
@@ -591,6 +626,201 @@ export default function Leads() {
         </div>
       )}
 
+      {/* Script Modal */}
+      {showScriptModal && selectedLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold">Scripts for {selectedLead.name}</h3>
+                <p className="text-sm text-gray-500 mt-1">{selectedLead.book_title}</p>
+              </div>
+              <button
+                onClick={() => setShowScriptModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingScripts ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : scripts.length === 0 ? (
+                <div className="text-center py-12">
+                  <FiBook className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500">No scripts available</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {scripts.map((script) => (
+                    <div
+                      key={script._id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 hover:shadow-md transition"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="font-semibold text-gray-900">{script.title}</h4>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          script.type === 'admin' ? 'bg-purple-100 text-purple-800' :
+                          script.type === 'closer' ? 'bg-green-100 text-green-800' :
+                          'bg-indigo-100 text-indigo-800'
+                        }`}>
+                          {script.type}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{script.content}</p>
+                      {script.audioUrl && script.audioStatus === 'ready' && (
+                        <div className="mt-3">
+                          <audio controls className="w-full">
+                            <source src={`http://localhost:5000${script.audioUrl}`} type="audio/mpeg" />
+                          </audio>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Script Modal */}
+      {showScriptModal && selectedLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold">Scripts for {selectedLead.name}</h3>
+                <p className="text-sm text-gray-500 mt-1">{selectedLead.book_title}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowScriptModal(false);
+                  setSelectedScript(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-hidden flex">
+              {loadingScripts ? (
+                <div className="flex justify-center items-center py-12 w-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : scripts.length === 0 ? (
+                <div className="text-center py-12 w-full">
+                  <FiBook className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500">No scripts available</p>
+                </div>
+              ) : (
+                <>
+                  {/* Left Column - Script Titles */}
+                  <div className="w-1/3 border-r border-gray-200 overflow-y-auto">
+                    <div className="p-4 space-y-2">
+                      {scripts.map((script) => (
+                        <button
+                          key={script._id}
+                          onClick={() => setSelectedScript(script)}
+                          className={`w-full text-left p-3 rounded-lg border transition ${
+                            selectedScript?._id === script._id
+                              ? 'border-indigo-500 bg-indigo-50'
+                              : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <h4 className="font-medium text-sm text-gray-900 flex-1">{script.title}</h4>
+                            <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded-full shrink-0 ${
+                              script.type === 'admin' ? 'bg-purple-100 text-purple-800' :
+                              script.type === 'closer' ? 'bg-green-100 text-green-800' :
+                              'bg-indigo-100 text-indigo-800'
+                            }`}>
+                              {script.type}
+                            </span>
+                          </div>
+                          {script.audioStatus === 'ready' && (
+                            <div className="flex items-center mt-1 text-xs text-green-600">
+                              <FiVolume2 className="h-3 w-3 mr-1" />
+                              Audio available
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Column - Script Content */}
+                  <div className="flex-1 overflow-y-auto p-6">
+                    {selectedScript ? (
+                      <div>
+                        <div className="mb-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <h3 className="text-xl font-semibold text-gray-900">{selectedScript.title}</h3>
+                            <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                              selectedScript.type === 'admin' ? 'bg-purple-100 text-purple-800' :
+                              selectedScript.type === 'closer' ? 'bg-green-100 text-green-800' :
+                              'bg-indigo-100 text-indigo-800'
+                            }`}>
+                              {selectedScript.type}
+                            </span>
+                          </div>
+                          {selectedScript.author && (
+                            <p className="text-sm text-gray-500">
+                              Created by {selectedScript.author.name || selectedScript.author.email}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="prose max-w-none">
+                          <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                            {selectedScript.content}
+                          </p>
+                        </div>
+
+                        {selectedScript.audioUrl && selectedScript.audioStatus === 'ready' && (
+                          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                            <div className="flex items-center mb-2">
+                              <FiVolume2 className="h-4 w-4 text-gray-600 mr-2" />
+                              <span className="text-sm font-medium text-gray-700">Audio Preview</span>
+                            </div>
+                            <audio controls className="w-full">
+                              <source src={`http://localhost:5000${selectedScript.audioUrl}`} type="audio/mpeg" />
+                            </audio>
+                          </div>
+                        )}
+
+                        {selectedScript.audioStatus === 'generating' && (
+                          <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
+                            Audio is being generated...
+                          </div>
+                        )}
+
+                        {selectedScript.audioStatus === 'failed' && (
+                          <div className="mt-6 p-4 bg-red-50 rounded-lg text-sm text-red-700">
+                            Audio generation failed: {selectedScript.audioError}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-gray-400">
+                        <div className="text-center">
+                          <FiBook className="h-12 w-12 mx-auto mb-3" />
+                          <p>Select a script to view details</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header with Tabs */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
@@ -761,7 +991,15 @@ export default function Leads() {
                 </tr>
               ) : (
                 filteredLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-gray-50">
+                  <tr 
+                    key={lead.id} 
+                    onClick={() => {
+                      setSelectedLead(lead);
+                      setShowScriptModal(true);
+                      fetchScripts();
+                    }}
+                    className="hover:bg-gray-50 cursor-pointer"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className={`flex-shrink-0 h-10 w-10 bg-gradient-to-br ${
