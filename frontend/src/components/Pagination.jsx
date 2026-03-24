@@ -1,61 +1,41 @@
-import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiChevronsLeft, FiChevronsRight } from "react-icons/fi";
 
-export default function Pagination({ currentPage, totalPages, pageSize, onPageChange, onPageSizeChange }) {
+export default function Pagination({ currentPage, totalPages, totalItems, itemsPerPage, onItemsPerPageChange, onFirst, onPrev, onNext, onLast }) {
   return (
-    <div className="mt-6 flex items-center justify-between px-2 border-t pt-4">
+    <div className="flex items-center justify-between">
       <div className="flex items-center space-x-2">
-        <p className="text-sm font-medium text-gray-700">Rows per page</p>
+        <span className="text-sm text-gray-700">
+          Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+          <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalItems)}</span>{' '}
+          of <span className="font-medium">{totalItems.toLocaleString()}</span> results
+        </span>
         <select
-          value={pageSize}
-          onChange={(e) => onPageSizeChange(Number(e.target.value))}
-          className="h-8 w-[70px] border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          value={itemsPerPage}
+          onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
+          className="ml-4 px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
         >
-          {[10, 20, 30, 40, 50].map((size) => (
-            <option key={size} value={size}>{size}</option>
+          {[25, 50, 100, 250, 1000, 2000].map((size) => (
+            <option key={size} value={size}>{size} / page</option>
           ))}
         </select>
       </div>
 
-      <div className="flex items-center space-x-6">
-        <div className="text-sm font-medium text-gray-700">
-          Page {currentPage} of {totalPages}
-        </div>
+      <div className="flex items-center space-x-2">
+        <button onClick={onFirst} disabled={currentPage === 1} className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" title="First page">
+          <FiChevronsLeft className="h-5 w-5" />
+        </button>
+        <button onClick={onPrev} disabled={currentPage === 1} className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" title="Previous page">
+          <FiChevronLeft className="h-5 w-5" />
+        </button>
 
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => onPageChange(1)}
-            disabled={currentPage <= 1}
-            className="hidden lg:flex h-8 w-8 items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FiChevronLeft className="h-4 w-4" />
-            <FiChevronLeft className="h-4 w-4 -ml-2" />
-          </button>
+        <span className="text-sm text-gray-700">Page {currentPage} of {totalPages}</span>
 
-          <button
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage <= 1}
-            className="h-8 w-8 flex items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FiChevronLeft className="h-4 w-4" />
-          </button>
-
-          <button
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage >= totalPages}
-            className="h-8 w-8 flex items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FiChevronRight className="h-4 w-4" />
-          </button>
-
-          <button
-            onClick={() => onPageChange(totalPages)}
-            disabled={currentPage >= totalPages}
-            className="hidden lg:flex h-8 w-8 items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FiChevronRight className="h-4 w-4" />
-            <FiChevronRight className="h-4 w-4 -ml-2" />
-          </button>
-        </div>
+        <button onClick={onNext} disabled={currentPage === totalPages} className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" title="Next page">
+          <FiChevronRight className="h-5 w-5" />
+        </button>
+        <button onClick={onLast} disabled={currentPage === totalPages} className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed" title="Last page">
+          <FiChevronsRight className="h-5 w-5" />
+        </button>
       </div>
     </div>
   );

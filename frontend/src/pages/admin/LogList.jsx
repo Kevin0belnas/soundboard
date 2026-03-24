@@ -9,7 +9,7 @@ export default function LogList({ searchQuery: externalSearchQuery = "" }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterAction, setFilterAction] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const fetchLogs = async () => {
     try {
@@ -88,9 +88,10 @@ export default function LogList({ searchQuery: externalSearchQuery = "" }) {
   });
 
   // Pagination
-  const totalPages = Math.ceil(filteredLogs.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + pageSize);
+  const totalItems = filteredLogs.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + itemsPerPage);
 
   const handleRefresh = () => {
     fetchLogs();
@@ -284,9 +285,13 @@ export default function LogList({ searchQuery: externalSearchQuery = "" }) {
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
-        pageSize={pageSize}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+        onItemsPerPageChange={(size) => { setItemsPerPage(size); setCurrentPage(1); }}
+        onFirst={() => setCurrentPage(1)}
+        onPrev={() => setCurrentPage(p => p - 1)}
+        onNext={() => setCurrentPage(p => p + 1)}
+        onLast={() => setCurrentPage(totalPages)}
       />
 
       {/* Summary Footer */}

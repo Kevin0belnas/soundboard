@@ -31,10 +31,12 @@ export default function ScriptList({
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [playingId, setPlayingId] = useState(null);
 
+  const [regenerating, setRegenerating] = useState(null);
+
   const audioRef = useRef(null);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   
   const userRole = localStorage.getItem("role");
   const userId = localStorage.getItem("userId");
@@ -53,14 +55,13 @@ export default function ScriptList({
     return ["all", "admin", userRole];
   };
 
-  
-
   const filterTypes = getFilterTypes();
 
   // Pagination
-  const totalPages = Math.ceil(filteredScripts.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const paginatedScripts = filteredScripts.slice(startIndex, startIndex + pageSize);
+  const totalItems = filteredScripts.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedScripts = filteredScripts.slice(startIndex, startIndex + itemsPerPage);
 
   const fetchScripts = async () => {
     try {
@@ -192,6 +193,23 @@ export default function ScriptList({
     } catch (err) {
       console.error("Error deleting script:", err);
       setError("Failed to delete script");
+    }
+  };
+
+  const handleRegenerateAudio = async (script) => {
+    try {
+      setRegenerating(script._id);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:5000/api/scripts/${script._id}/regenerate-audio`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) fetchScripts();
+      else setError("Failed to regenerate audio");
+    } catch {
+      setError("Failed to regenerate audio");
+    } finally {
+      setRegenerating(null);
     }
   };
 
@@ -488,6 +506,17 @@ export default function ScriptList({
 
                     {script.canEdit && (
                       <button
+                        onClick={() => handleRegenerateAudio(script)}
+                        disabled={regenerating === script._id}
+                        className="p-1.5 sm:p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50"
+                        title="Regenerate Audio"
+                      >
+                        <FiRefreshCw className={`w-4 h-4 ${regenerating === script._id ? "animate-spin" : ""}`} />
+                      </button>
+                    )}
+
+                    {script.canEdit && (
+                      <button
                         onClick={() => onEditScript(script)}
                         className="p-1.5 sm:p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                         title="Edit script"
@@ -536,9 +565,13 @@ export default function ScriptList({
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={(size) => { setItemsPerPage(size); setCurrentPage(1); }}
+            onFirst={() => setCurrentPage(1)}
+            onPrev={() => setCurrentPage(p => p - 1)}
+            onNext={() => setCurrentPage(p => p + 1)}
+            onLast={() => setCurrentPage(totalPages)}
           />
         </>
       )}
