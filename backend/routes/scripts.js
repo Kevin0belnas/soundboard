@@ -5,9 +5,9 @@ const fs = require("fs");
 const path = require("path");
 const Script = require("../models/Script");
 const Log = require("../models/Log");
+const { AUDIO_DIR, saveScriptAudioFile, generateTempAudio } = require("../services/ttsService");
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
-const AUDIO_DIR = path.join(__dirname, "..", "uploads", "audio");
 
 // ---------------- AUTH MIDDLEWARE ----------------
 const authenticateToken = (req, res, next) => {
@@ -28,107 +28,17 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ---------------- HELPERS ----------------
-function ensureAudioDir() {
-  if (!fs.existsSync(AUDIO_DIR)) {
-    fs.mkdirSync(AUDIO_DIR, { recursive: true });
-  }
-}
-
-function sanitizeFileName(value = "") {
-  return value
-    .replace(/[^a-zA-Z0-9-_]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 80);
-}
-
-async function getSavedVoiceSettings(apiKey, voiceId) {
-  const settingsResponse = await fetch(
-    `https://api.elevenlabs.io/v1/voices/${voiceId}/settings`,
-    {
-      method: "GET",
-      headers: {
-        "xi-api-key": apiKey,
-      },
-    }
-  );
-
-  if (!settingsResponse.ok) {
-    const rawError = await settingsResponse.text();
-    throw new Error(rawError || "Failed to fetch ElevenLabs voice settings");
-  }
-
-  return settingsResponse.json();
-}
-
 async function generateAndSaveScriptAudio(scriptDoc, oldAudioFileName = "") {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID;
-
-  if (!apiKey) {
-    throw new Error("Missing ELEVENLABS_API_KEY in backend .env");
-  }
-
-  if (!voiceId) {
-    throw new Error("Missing ELEVENLABS_VOICE_ID in backend .env");
-  }
-
-  ensureAudioDir();
-
-  const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "xi-api-key": apiKey,
-        Accept: "audio/mpeg",
-      },
-      body: JSON.stringify({
-        text: scriptDoc.content.trim(),
-        model_id: "eleven_multilingual_v2",
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const rawError = await response.text();
-    throw new Error(rawError || "ElevenLabs request failed");
-  }
-
-  const audioBuffer = Buffer.from(await response.arrayBuffer());
-
-  if (oldAudioFileName) {
-    const oldFilePath = path.join(AUDIO_DIR, oldAudioFileName);
-    if (fs.existsSync(oldFilePath)) {
-      fs.unlinkSync(oldFilePath);
-    }
-  }
-
-  const safeTitle = sanitizeFileName(scriptDoc.title || "script");
-  const fileName = `${scriptDoc._id}_${safeTitle}.mp3`;
-  const filePath = path.join(AUDIO_DIR, fileName);
-
-  fs.writeFileSync(filePath, audioBuffer);
-
-  scriptDoc.audioFileName = fileName;
-  scriptDoc.audioUrl = `/audio/${fileName}`;
-  scriptDoc.audioStatus = "ready";
-  scriptDoc.audioError = "";
-  await scriptDoc.save();
-
-  return scriptDoc;
+  return saveScriptAudioFile(scriptDoc, oldAudioFileName);
 }
 
-// ---------------- GET ALL SCRIPTS ----------------
-// Helper function to create logs
 const createLog = async (req, action, details) => {
   try {
     const log = new Log({
       action,
-      user: req.user.userId,
+      user: req.user?.userId,
       details,
-      ip: req.ip || req.connection.remoteAddress
+      ip: req.ip || req.connection.remoteAddress,
     });
     await log.save();
     console.log(`Log created: ${action}`);
@@ -137,7 +47,7 @@ const createLog = async (req, action, details) => {
   }
 };
 
-// Get all scripts (protected)
+// ---------------- GET ALL SCRIPTS ----------------
 router.get("/", authenticateToken, async (req, res) => {
   try {
     let query = {};
@@ -148,10 +58,7 @@ router.get("/", authenticateToken, async (req, res) => {
       const adminIds = admins.map((admin) => admin._id);
 
       query = {
-        $or: [
-          { author: req.user.userId },
-          { author: { $in: adminIds } }
-        ]
+        $or: [{ author: req.user.userId }, { author: { $in: adminIds } }],
       };
     }
 
@@ -164,7 +71,7 @@ router.get("/", authenticateToken, async (req, res) => {
     console.error("Error fetching scripts:", error);
     await createLog(req, "error", {
       error: error.message,
-      action: "fetch_scripts"
+      action: "fetch_scripts",
     });
     res.status(500).json({ error: error.message });
   }
@@ -184,12 +91,6 @@ router.post("/", authenticateToken, async (req, res) => {
     }
 
     let finalType = type || "general";
-
-    if (req.user.role === "closer") {
-      finalType = "closer";
-    } else if (req.user.role === "opener") {
-      finalType = "opener";
-    } 
 
     if (req.user.role === "closer") {
       finalType = "closer";
@@ -232,16 +133,15 @@ router.post("/", authenticateToken, async (req, res) => {
     await createLog(req, "error", {
       error: error.message,
       action: "create_script",
-      body: req.body
+      body: req.body,
     });
 
     if (error.name === "ValidationError") {
       return res.status(400).json({
         error: "Validation failed",
-        details: error.errors
+        details: error.errors,
       });
     }
-
 
     res.status(500).json({ error: error.message });
   }
@@ -267,16 +167,15 @@ router.put("/:id", authenticateToken, async (req, res) => {
         scriptId,
         userId: req.user.userId,
         action: "update_script",
-        message: "User attempted to update a script they did not create"
+        message: "User attempted to update a script they did not create",
       });
       return res.status(403).json({ error: "Only the creator or admin can edit this script" });
     }
-    
-    // Store old values for logging
+
     const oldValues = {
       title: script.title,
       content: script.content,
-      type: script.type
+      type: script.type,
     };
 
     const oldAudioFileName = script.audioFileName || "";
@@ -290,22 +189,25 @@ router.put("/:id", authenticateToken, async (req, res) => {
       newContent !== script.content ||
       newType !== script.type;
 
-          // Update fields 
     script.title = newTitle;
     script.content = newContent;
-    script.type = type || script.type;
+    script.type = newType;
     script.updatedAt = Date.now();
-    
+
+    if (shouldRegenerate) {
+      script.audioStatus = "generating";
+      script.audioError = "";
+    }
+
     await script.save();
     await script.populate("author", "_id name email");
-    
-    // CREATE LOG ENTRY
+
     await createLog(req, "update_script", {
       scriptId: script._id,
       title: script.title,
       oldValues,
-      newValues: { title, content, type },
-      message: `Updated script: ${script.title}`
+      newValues: { title: newTitle, content: newContent, type: newType },
+      message: `Updated script: ${script.title}`,
     });
 
     res.json({
@@ -327,8 +229,6 @@ router.put("/:id", authenticateToken, async (req, res) => {
       script.audioError = audioError.message;
       await script.save();
     }
-
-    
   } catch (error) {
     console.error("Error updating script:", error);
     res.status(500).json({ error: error.message });
@@ -339,7 +239,6 @@ router.put("/:id", authenticateToken, async (req, res) => {
 router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
   try {
     const scriptId = req.params.id;
-
     const script = await Script.findById(scriptId);
 
     if (!script) {
@@ -384,7 +283,7 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
     await createLog(req, "error", {
       error: error.message,
       scriptId: req.params.id,
-      action: "update_script"
+      action: "regenerate_audio",
     });
 
     res.status(500).json({ error: error.message });
@@ -400,71 +299,18 @@ router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Text is required" });
     }
 
-    const apiKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.ELEVENLABS_VOICE_ID;
-
-    if (!apiKey || !voiceId) {
-      return res.status(500).json({ error: "ElevenLabs configuration missing" });
-    }
-
-    ensureAudioDir();
-    const tempDir = path.join(__dirname, "..", "uploads", "temp");
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "xi-api-key": apiKey,
-          Accept: "audio/mpeg",
-        },
-        body: JSON.stringify({
-          text: text.trim(),
-          model_id: "eleven_multilingual_v2",
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const rawError = await response.text();
-      throw new Error(rawError || "ElevenLabs request failed");
-    }
-
-    const audioBuffer = Buffer.from(await response.arrayBuffer());
-
-    // Save to temp directory with timestamp
-    const timestamp = Date.now();
-    const fileName = `temp_${scriptId || 'audio'}_${timestamp}.mp3`;
-    const filePath = path.join(tempDir, fileName);
-
-    fs.writeFileSync(filePath, audioBuffer);
-
-    // Clean up old temp files 
-    const files = fs.readdirSync(tempDir);
-    const oneHourAgo = Date.now() - (60 * 60 * 1000);
-    files.forEach(file => {
-      const filePath = path.join(tempDir, file);
-      const stats = fs.statSync(filePath);
-      if (stats.mtimeMs < oneHourAgo) {
-        fs.unlinkSync(filePath);
-      }
-    });
+    const result = await generateTempAudio(text, scriptId || "audio");
 
     res.json({
       success: true,
-      audioUrl: `/temp/${fileName}`,
-      message: "Personalized audio generated successfully"
+      audioUrl: result.audioUrl,
+      message: "Personalized audio generated successfully",
     });
-
   } catch (error) {
     console.error("Error generating temporary audio:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: error.message || "Failed to generate audio" 
+      error: error.message || "Failed to generate audio",
     });
   }
 });
@@ -473,9 +319,7 @@ router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const scriptId = req.params.id;
-
     const script = await Script.findById(scriptId);
-
 
     if (!script) {
       return res.status(404).json({ error: "Script not found" });
@@ -489,7 +333,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
         scriptId,
         userId: req.user.userId,
         action: "delete_script",
-        message: "User attempted to delete a script they did not create"
+        message: "User attempted to delete a script they did not create",
       });
       return res.status(403).json({ error: "Only the creator or admin can delete this script" });
     }
@@ -501,11 +345,10 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       }
     }
 
-
     const deletedScriptInfo = {
       id: script._id,
       title: script.title,
-      type: script.type
+      type: script.type,
     };
 
     await Script.findByIdAndDelete(scriptId);
@@ -514,7 +357,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       scriptId: deletedScriptInfo.id,
       title: deletedScriptInfo.title,
       type: deletedScriptInfo.type,
-      message: `Deleted script: ${deletedScriptInfo.title}`
+      message: `Deleted script: ${deletedScriptInfo.title}`,
     });
 
     res.json({ message: "Script deleted successfully" });
@@ -524,7 +367,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     await createLog(req, "error", {
       error: error.message,
       scriptId: req.params.id,
-      action: "delete_script"
+      action: "delete_script",
     });
 
     res.status(500).json({ error: error.message });

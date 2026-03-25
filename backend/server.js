@@ -156,6 +156,7 @@ async function startServer() {
     app.use("/audio", express.static(path.join(__dirname, "uploads", "audio")));
     app.use("/temp", express.static(path.join(__dirname, "uploads", "temp")));
     app.use("/api/contacts", require("./routes/contacts")); // New contacts routes
+    app.use("/api/asterisk", require("./routes/asterisk"));
 
 // Connect MongoDB
 mongoose.connect(process.env.MONGO_URI)
