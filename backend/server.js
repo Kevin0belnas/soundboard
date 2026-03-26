@@ -67,13 +67,12 @@ async function startServer() {
     // Routes
     app.use("/api/auth", require("./routes/auth"));
     app.use("/api/scripts", require("./routes/scripts"));
-    app.use("/api/logs", require("./routes/logs"));W
+    app.use("/api/logs", require("./routes/logs"));
     app.use("/api/tts", ttsRoutes);
     app.use("/api/users",require("./routes/users"));
     app.use("/audio", express.static(path.join(__dirname, "uploads", "audio")));
     app.use("/temp", express.static(path.join(__dirname, "uploads", "temp")));
     app.use("/api/contacts", require("./routes/contacts")); // New contacts routes
-    app.use("/api/asterisk", require("./routes/asterisk"));
 
 // Connect MongoDB
 mongoose.connect(process.env.MONGO_URI)
