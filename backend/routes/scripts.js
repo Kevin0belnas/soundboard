@@ -12,7 +12,7 @@ const { getCachedPath } = require("../utils/dynamicCache");
 
 const DYNAMIC_PLACEHOLDER = /\[[^\]]+\]/;
 const STAGE_DIRECTION =
-  /^(\[PAUSE[^\]]*\]|Pause\.?(\s+Let them agree\.?)?(\s+Let them answer\.?)?(\s+Then transition\.?)?|Let them answer\.?|Then transition\.?|Wait for (response|answer|reply)\.?|Transition\.?|Note:.*)$/i;
+  /^(\[PAUSE[^\]]*\]|Pause\.?(\s+Let them agree\.?)?(\s+Let them answer\.?)?(\s+Then transition\.?)?|Let them agree\.?|Let them answer\.?|Then transition\.?|Wait for (response|answer|reply)\.?|Transition\.?|Note:.*)$/i;
 
 function parseScriptSectionsBackend(content) {
   if (!content) return [];
@@ -597,7 +597,7 @@ router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
 
     // Approach 1: Section-by-section generation for dynamic scripts without regenerating the whole script
     if (sectionText) {
-      const cleaned = sectionText.trim();
+      const cleaned = stripStageDirections(sectionText.trim());
 
       if (!cleaned) {
         return res

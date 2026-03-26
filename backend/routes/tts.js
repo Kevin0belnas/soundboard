@@ -31,6 +31,19 @@ router.post("/speak", async (req, res) => {
       });
     }
 
+    const STAGE_DIRECTION =
+      /^(\[PAUSE[^\]]*\]|Pause\.?(\s+Let them agree\.?)?(\s+Let them answer\.?)?(\s+Then transition\.?)?|Let them agree\.?|Let them answer\.?|Then transition\.?|Wait for (response|answer|reply)\.?|Transition\.?|Note:.*)$/i;
+
+    const cleanedText = text
+      .split("\n")
+      .filter((line) => !STAGE_DIRECTION.test(line.trim()))
+      .join("\n")
+      .trim();
+
+    if (!cleanedText) {
+      return res.status(400).json({ success: false, message: "Text is empty after removing stage directions." });
+    }
+
     const elevenResponse = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoiceId}`,
       {
@@ -41,7 +54,7 @@ router.post("/speak", async (req, res) => {
           Accept: "audio/mpeg",
         },
         body: JSON.stringify({
-          text: text.trim(),
+          text: cleanedText,
           model_id: "eleven_multilingual_v2",
           voice_settings: {
             stability: 0.5,
