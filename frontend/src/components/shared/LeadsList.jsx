@@ -37,7 +37,8 @@ function parseScriptSections(content) {
       !trimmed.startsWith("-") &&
       !/[.!?,:,"]$/.test(trimmed) &&
       /^[A-Z"]/.test(trimmed) &&
-      !trimmed.includes("[PAUSE]")
+      !trimmed.includes("[PAUSE]") &&
+      !/^(As\s+mentioned)/i.test(trimmed)
     );
   };
 
@@ -243,7 +244,6 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         const scriptsArray = Array.isArray(data)
           ? data.filter((script) => scriptTypeFilter.includes(script.type))
           : [];
-          console.log('Scripts fetched:', scriptsArray);
         setScripts(scriptsArray);
         // Set first script as selected by default
         if (scriptsArray.length > 0) {
@@ -255,7 +255,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     } finally {
       setLoadingScripts(false);
     }
-  };   
+  };
 
   const fetchLeads = async () => {
     setIsLoading(true);
@@ -303,20 +303,14 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     try {
       const response = await api.get("/contacts/agents/available");
       if (response.data.success) {
-        // Filter agents based on role
         let agents = response.data.data;
         if (userRole === "opener") {
           // Openers can transfer to closers
           agents = agents.filter(
             (agent) => agent.role === "closer" && agent.id !== userId,
           );
-        } 
-        // else if (userRole === "closer") {
-        //   // Closers can transfer to openers
-        //   agents = agents.filter(
-        //     (agent) => agent.role === "opener" && agent.id !== userId,
-        //   );
-        // }
+        }
+
         setAvailableAgents(agents);
       }
     } catch (error) {
@@ -478,6 +472,16 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     }
   };
 
+  const shouldRemoveOpenerPlaceholder =
+    userRole === "closer" && !selectedLead?.transferred_to;
+
+  const removeOpenerPlaceholder = (text) => {
+    if (!text) return "";
+    if (!shouldRemoveOpenerPlaceholder) return text;
+
+    return text.replace(/\s*\[Opener Name\]\s*/g, " ");
+  };
+
   const playSectionAudio = async (sectionIdx) => {
     if (!selectedScript || !isPlayingRef.current) return;
 
@@ -531,7 +535,9 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     if (!audioUrl) {
       // Dynamic section generate live
       setGeneratingAudio(true);
-      const resolvedText = cleanTextForTTS(section.content)
+      const resolvedText = removeOpenerPlaceholder(
+        cleanTextForTTS(section.content),
+      )
         .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
         .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
         .replace(/\[Your Name\]/g, localStorage.getItem("name") || "User")
@@ -646,7 +652,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
   const replaceScriptPlaceholders = (content) => {
     const currentUserName = localStorage.getItem("name") || "User";
-    return content
+    return removeOpenerPlaceholder(content)
       .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
       .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
       .replace(/\[Your Name\]/g, currentUserName)
@@ -996,26 +1002,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                   </h3>
                   <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">
                     Book: "{selectedLead.book_title}"
-                  </p>
-                  {!selectedLead.transferred_to && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <label className="text-xs text-gray-500 whitespace-nowrap">
-                        Who's the opener?
-                      </label>
-                      <select
-                        value={callManagerId}
-                        onChange={(e) => setCallManagerId(e.target.value)}
-                        className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      >
-                        <option value="">Select opener...</option>
-                        {openerAgents.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  </p> 
                 </div>
                 <button
                   onClick={() => {

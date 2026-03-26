@@ -49,7 +49,9 @@ export default function ScriptList({
   // Filter types based on user role
   const getFilterTypes = () => {
     if (userRole === "admin") {
-      return ["all", ...new Set(scripts.map(s => s.type))];
+      return ["all", "admin", ...new Set(scripts.map(s => s.type))];
+    } else if (userRole === "closer") {
+      return ["all", "admin", "opener", userRole];
     }
 
     return ["all", "admin", userRole];
@@ -107,11 +109,12 @@ export default function ScriptList({
         canDelete: userRole === "admin" || script.author?._id === userId
       }));
 
-      if (userRole === "closer") {
-        scriptsArray = scriptsArray.filter(
-          (script) => script.normalizedType === "admin" || script.normalizedType === "closer"
-        );
-      } else if (userRole === "opener") {
+      // if (userRole === "closer") {
+      //   scriptsArray = scriptsArray.filter(
+      //     (script) => script.normalizedType === "admin" || script.normalizedType === "closer"
+      //   );
+      // } else 
+        if (userRole === "opener") {
         scriptsArray = scriptsArray.filter(
           (script) => script.normalizedType === "admin" || script.normalizedType === "opener"
         );
