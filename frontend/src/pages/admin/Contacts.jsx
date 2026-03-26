@@ -216,6 +216,7 @@ export default function Contacts() {
       });
 
       if (response.data.success) {
+        console.log("Bulk assign response:", response.data);
         showNotification("success", response.data.message);
         setSelectedContacts(new Set());
         setSelectedAgent("");

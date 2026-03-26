@@ -11,6 +11,8 @@ const { stitchAudio } = require("../utils/stitchAudio");
 const { getCachedPath } = require("../utils/dynamicCache");
 
 const DYNAMIC_PLACEHOLDER = /\[[^\]]+\]/;
+const OPENER_NAME_PATTERN = /\[Opener Name\]/gi;
+const OPENER_NAME_CONTEXT = /\b(as|like|what)\s+\[Opener Name\]\s+(mentioned|said|told us|explained)/gi;
 const STAGE_DIRECTION =
   /^(\[PAUSE[^\]]*\]|Pause\.?(\s+Let them agree\.?)?(\s+Let them answer\.?)?(\s+Then transition\.?)?|Let them answer\.?|Then transition\.?|Wait for (response|answer|reply)\.?|Transition\.?|Note:.*)$/i;
 
@@ -68,6 +70,16 @@ function stripStageDirections(text) {
     .filter((line) => !STAGE_DIRECTION.test(line.trim()))
     .join("\n")
     .trim();
+}
+
+function stripOpenerName(text) {
+  // "as [Opener Name] mentioned" → "as mentioned"
+  // "like [Opener Name] said" → "as mentioned"
+  // "what [Opener Name] mentioned" → "as mentioned"
+  let result = text.replace(OPENER_NAME_CONTEXT, "as mentioned");
+  // fallback: bare [Opener Name] still remaining → remove entirely
+  result = result.replace(OPENER_NAME_PATTERN, "").replace(/\s{2,}/g, " ").trim();
+  return result;
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
@@ -146,6 +158,7 @@ async function generateAndSaveScriptAudio(
   ensureAudioDir();
 
   const segments = parseScript(scriptDoc.content);
+  const isCloser = scriptDoc.type === "closer";
 
   // Generate static segments which will be saved as numbered files
   const staticDir = path.join(AUDIO_DIR, "static");
@@ -155,12 +168,13 @@ async function generateAndSaveScriptAudio(
 
   for (const seg of segments) {
     if (seg.type === "static") {
+      const segText = isCloser ? stripOpenerName(seg.text) : seg.text;
       const fileName = `${scriptDoc._id}_seg${seg.index}.mp3`;
       const filePath = path.join(staticDir, fileName);
 
       // Only regenerate if file doesn't exist, or force regeneration on content change
       if (!fs.existsSync(filePath) || forceRegenerate) {
-        await generateSegment(seg.text, filePath);
+        await generateSegment(segText, filePath);
       }
 
       savedSegments.push({ ...seg, fileName });
@@ -202,10 +216,14 @@ async function generateAndSaveScriptAudio(
 
   for (let i = 0; i < sections.length; i++) {
     const sec = sections[i];
-    // Skip sections with dynamic placeholders
-    if (DYNAMIC_PLACEHOLDER.test(sec.content)) continue;
+    // Skip sections with dynamic placeholders (but not [ref:...] tags)
+    const contentWithoutRefs = sec.content.replace(/\[ref:[a-f0-9]{24}\]/gi, "");
+    if (DYNAMIC_PLACEHOLDER.test(contentWithoutRefs)) continue;
 
-    const cleaned = stripStageDirections(sec.content);
+    let cleaned = stripStageDirections(sec.content);
+    if (isCloser) cleaned = stripOpenerName(cleaned);
+    // remove any [ref:...] tags from the text before TTS
+    cleaned = cleaned.replace(/\[ref:[a-f0-9]{24}\]/gi, "").trim();
     if (!cleaned) continue;
 
     const fileName = `${scriptDoc._id}_section${i}.mp3`;

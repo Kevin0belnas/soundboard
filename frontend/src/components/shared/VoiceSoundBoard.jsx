@@ -54,30 +54,26 @@ export default function VoiceSoundBoard() {
     }
   };
 
-  const playScript = async (text, id = "custom") => {
+  const playScript = async (script) => {
+    const id = script._id;
     try {
-      if (!text || !text.trim()) {
-        setError("Please enter a script first.");
-        return;
-      }
+      if (!script) return;
 
       setError("");
       setLoadingId(id);
       stopCurrentAudio();
 
-      const res = await fetch("http://localhost:5000/api/tts/speak", {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:5000/api/scripts/${id}/play`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text }),
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!res.ok) {
         let message = "Failed to generate voice.";
         try {
           const err = await res.json();
-          message = err.details || err.message || message;
+          message = err.error || err.message || message;
         } catch {
           // ignore parse error
         }
@@ -86,18 +82,49 @@ export default function VoiceSoundBoard() {
 
       const blob = await res.blob();
       const audioUrl = URL.createObjectURL(blob);
-
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
+      audio.onended = () => URL.revokeObjectURL(audioUrl);
+      audio.onerror = () => URL.revokeObjectURL(audioUrl);
+      await audio.play();
+    } catch (err) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setLoadingId(null);
+    }
+  };
 
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-      };
+  const playCustomText = async (text) => {
+    try {
+      if (!text || !text.trim()) {
+        setError("Please enter a script first.");
+        return;
+      }
+      setError("");
+      setLoadingId("custom");
+      stopCurrentAudio();
 
-      audio.onerror = () => {
-        URL.revokeObjectURL(audioUrl);
-      };
+      const res = await fetch("http://localhost:5000/api/tts/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
 
+      if (!res.ok) {
+        let message = "Failed to generate voice.";
+        try {
+          const err = await res.json();
+          message = err.details || err.message || message;
+        } catch { }
+        throw new Error(message);
+      }
+
+      const blob = await res.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      audio.onended = () => URL.revokeObjectURL(audioUrl);
+      audio.onerror = () => URL.revokeObjectURL(audioUrl);
       await audio.play();
     } catch (err) {
       setError(err.message || "Something went wrong.");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 export default function ScriptForm({ script, onClose, onSave }) {
@@ -12,6 +12,36 @@ export default function ScriptForm({ script, onClose, onSave }) {
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [openerScripts, setOpenerScripts] = useState([]);
+  const [showRefPicker, setShowRefPicker] = useState(false);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (userRole !== "closer") return;
+    const token = localStorage.getItem("token");
+    fetch("http://localhost:5000/api/scripts/openers", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => setOpenerScripts(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [userRole]);
+
+  const insertRef = (openerScript) => {
+    const tag = `[ref:${openerScript._id}]`;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const current = formData.content;
+    const updated = current.slice(0, start) + tag + current.slice(end);
+    setFormData((prev) => ({ ...prev, content: updated }));
+    setShowRefPicker(false);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + tag.length, start + tag.length);
+    }, 0);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();

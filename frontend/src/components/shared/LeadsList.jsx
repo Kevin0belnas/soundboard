@@ -37,7 +37,8 @@ function parseScriptSections(content) {
       !trimmed.startsWith("-") &&
       !/[.!?,:,"]$/.test(trimmed) &&
       /^[A-Z"]/.test(trimmed) &&
-      !trimmed.includes("[PAUSE]")
+      !trimmed.includes("[PAUSE]") &&
+      !/^(As\s+mentioned)/i.test(trimmed)
     );
   };
 
@@ -151,6 +152,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const [managerName, setManagerName] = useState("");
   const [callManagerId, setCallManagerId] = useState("");
   const [openerAgents, setOpenerAgents] = useState([]);
+  const [assignmentOpenerName, setAssignmentOpenerName] = useState("");
 
   // Get current user info
   const userId = localStorage.getItem("userId");
@@ -536,12 +538,15 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
         .replace(/\[Your Name\]/g, localStorage.getItem("name") || "User")
         .replace(/\[Manager Name\]/g, resolvedManagerName || "")
+        .replace(/\b(as|like|what)\s+\[Opener Name\]\s+(mentioned|said|told us|explained)/gi,
+          (userRole === "closer" && activeTab === "my-leads") ? "as mentioned" : (_m, p1, p2) => `${p1} ${assignmentOpenerName || (!selectedLead?.transferred_to ? openerAgents.find((a) => a.id === callManagerId)?.name : openerName) || ""} ${p2}`
+        )
         .replace(
           /\[Opener Name\]/g,
-          (!selectedLead?.transferred_to
+          (userRole === "closer" && activeTab === "my-leads") ? "" : (assignmentOpenerName || (!selectedLead?.transferred_to
             ? openerAgents.find((a) => a.id === callManagerId)?.name
-            : openerName) || "",
-        );
+            : openerName) || ""),
+        ).replace(/[ \t]{2,}/g, " ").trim();
 
       if (!resolvedText.trim()) {
         setCompletedSections((prev) => [...prev, sectionIdx]);
@@ -646,17 +651,26 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
   const replaceScriptPlaceholders = (content) => {
     const currentUserName = localStorage.getItem("name") || "User";
-    return content
+    let result = content
       .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
       .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
       .replace(/\[Your Name\]/g, currentUserName)
-      .replace(/\[Manager Name\]/g, resolvedManagerName || "[Manager Name]")
-      .replace(
-        /\[Opener Name\]/g,
+      .replace(/\[Manager Name\]/g, resolvedManagerName || "[Manager Name]");
+
+    if (userRole === "closer" && activeTab === "my-leads") {
+      // My Leads: strip opener name entirely
+      result = result
+        .replace(/\b(as|like|what)\s+\[Opener Name\]\s+(mentioned|said|told us|explained)/gi, "As mentioned")
+        .replace(/\[Opener Name\]/gi, "").replace(/[ \t]{2,}/g, " ");
+    } else {
+      // Transferred tab (or opener role): use actual opener name from assignment history
+      const resolvedOpener = assignmentOpenerName ||
         (!selectedLead?.transferred_to
           ? openerAgents.find((a) => a.id === callManagerId)?.name
-          : openerName) || "[Opener Name]",
-      );
+          : openerName) || "[Opener Name]";
+      result = result.replace(/\[Opener Name\]/g, resolvedOpener);
+    }
+    return result;
   };
 
   const showNotification = (type, message) => {
@@ -1662,9 +1676,21 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                       setOpenerName(opener);
                       setManagerName(manager);
                       setCallManagerId("");
+                      setAssignmentOpenerName("");
+                      if (userRole === "closer") {
+                        try {
+                          const res = await fetch(
+                            `http://localhost:5000/api/contacts/${lead.id}/opener-script`,
+                            { headers: { Authorization: `Bearer ${token}` } }
+                          );
+                          if (res.ok) {
+                            const d = await res.json();
+                            if (d.openerName) setAssignmentOpenerName(d.openerName);
+                          }
+                        } catch {}
+                      }
                       if (!lead.transferred_to) {
                         try {
-                          const token = localStorage.getItem("token");
                           const res = await fetch(
                             "http://localhost:5000/api/contacts/agents/available",
                             {

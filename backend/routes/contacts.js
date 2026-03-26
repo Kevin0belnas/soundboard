@@ -1033,4 +1033,34 @@ router.get('/transferred-to/:agentId/page/:page/limit/:limit', async (req, res) 
   }
 });
 
+// Get opener info linked to a lead via assignment_history (for closer role)
+router.get('/:leadId/opener-script', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const Script = require('../models/Script');
+
+    // Find the opener who was originally assigned this lead (not removed = still active, or most recent)
+    const [history] = await db.query(
+      `SELECT agent_id FROM assignment_history WHERE lead_id = ? ORDER BY assigned_at ASC LIMIT 1`,
+      [leadId]
+    );
+    if (!history.length) return res.json({ success: false, script: null, openerName: null });
+
+    const openerId = history[0].agent_id;
+    const openerUser = await User.findById(openerId).select('name role');
+    if (!openerUser || openerUser.role !== 'opener') return res.json({ success: false, script: null, openerName: null });
+
+    const script = await Script.findOne({ author: openerId, type: 'opener' }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      openerName: openerUser.name,
+      script: script ? { _id: script._id, title: script.title, audioStatus: script.audioStatus } : null
+    });
+  } catch (error) {
+    console.error('Error fetching opener script:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;
