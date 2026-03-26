@@ -19,6 +19,16 @@ router.get("/", authMiddleware(['admin']), async (req, res) => {
   }
 });
 
+router.get("/:id/name", authMiddleware(["admin", "opener", "closer"]), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("name role");
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json({ name: user.name, role: user.role });
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Get single user by ID (admin only)
 router.get("/:id", authMiddleware(['admin']), async (req, res) => {
   try {

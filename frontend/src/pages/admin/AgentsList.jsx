@@ -9,7 +9,7 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     fetchAgents();
@@ -101,9 +101,10 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
   });
 
   // Pagination
-  const totalPages = Math.ceil(filteredAgents.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const paginatedAgents = filteredAgents.slice(startIndex, startIndex + pageSize);
+  const totalItems = filteredAgents.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedAgents = filteredAgents.slice(startIndex, startIndex + itemsPerPage);
 
   // Determine what to display
   const showNoData = !loading && !error && agents.length === 0;
@@ -267,9 +268,13 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={(size) => { setItemsPerPage(size); setCurrentPage(1); }}
+            onFirst={() => setCurrentPage(1)}
+            onPrev={() => setCurrentPage(p => p - 1)}
+            onNext={() => setCurrentPage(p => p + 1)}
+            onLast={() => setCurrentPage(totalPages)}
           />
           
           {/* Summary Footer */}
