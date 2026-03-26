@@ -1,19 +1,19 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom"; 
 import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
 import VoiceSoundboard from "../../components/shared/VoiceSoundBoard";
 import Leads from "./Leads";
-import {
-  FiBook,
-  FiLogOut,
+import { 
+  FiBook,  
+  FiLogOut, 
   FiBell,
   FiMenu,
   FiX,
   FiChevronRight,
   FiSearch,
   FiRefreshCw,
-  FiVolume2,
+  FiVolume2, 
 } from "react-icons/fi";
 
 export default function CloserDashboard({ onLogout, initialView = "leads" }) {
@@ -32,11 +32,11 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
-
+  
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [editingScript, setEditingScript] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
-
+  
   const navigate = useNavigate();
 
   const handleViewChange = (newView) => {
@@ -79,47 +79,44 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
     { id: "leads", label: "Leads", icon: FiBook },
     { id: "scripts", label: "Scripts", icon: FiBook },
     { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
+    
   ];
 
   const pageTitle =
     view === "scripts"
       ? "Script Management"
       : view === "logs"
-        ? "Activity Logs"
-        : view === "leads"
-          ? "Lead Management"
-          : "Voice Soundboard";
+      ? "Activity Logs"
+      : view === "leads"
+      ? "Lead Management"
+      : "Voice Soundboard";
 
   const pageSubtitle =
     view === "scripts"
       ? "Create, edit, and manage your automation scripts"
       : view === "logs"
-        ? "Monitor and analyze system activity"
-        : view === "leads"
-          ? "Manage your leads effectively"
-          : "Click a script and let ElevenLabs speak it";
+      ? "Monitor and analyze system activity"
+      : view === "leads"
+      ? "Manage your leads effectively"
+      : "Click a script and let ElevenLabs speak it";
 
   return (
-    <div
-      className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex ${isMobileMenuOpen ? "overflow-hidden" : ""}`}
-    >
+    <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex ${isMobileMenuOpen ? 'overflow-hidden' : ''}`}>
       {isMobileMenuOpen && (
-        <div
+        <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
-      <aside
-        className={`
+      <aside className={`
         fixed lg:static inset-y-0 left-0 z-50 flex flex-col
         bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white
         transition-all duration-300 ease-in-out transform
-        ${sidebarCollapsed ? "w-20" : "w-72"}
-        ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        ${sidebarCollapsed ? 'w-20' : 'w-72'}
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         shadow-2xl lg:h-screen lg:sticky lg:top-0 overflow-hidden
-      `}
-      >
+      `}>
         <div className="h-20 flex items-center justify-between px-4 border-b border-gray-700/50">
           <div className="flex items-center space-x-3 overflow-hidden">
             {!sidebarCollapsed && (
@@ -170,41 +167,32 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = view === item.id;
-
+            
             return (
               <button
                 key={item.id}
                 onClick={() => handleViewChange(item.id)}
                 className={`
                   w-full group relative
-                  ${sidebarCollapsed ? "px-2" : "px-4"}
+                  ${sidebarCollapsed ? 'px-2' : 'px-4'}
                   py-3 rounded-xl transition-all duration-200
-                  ${
-                    isActive
-                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25"
-                      : "text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                  ${isActive 
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25' 
+                    : 'text-gray-300 hover:bg-gray-700/50 hover:text-white'
                   }
                 `}
-                aria-current={isActive ? "page" : undefined}
+                aria-current={isActive ? 'page' : undefined}
               >
-                <div
-                  className={`flex items-center ${sidebarCollapsed ? "justify-center" : "space-x-3"}`}
-                >
-                  <Icon
-                    className={`w-5 h-5 shrink-0 ${isActive ? "animate-pulse" : ""}`}
-                  />
+                <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'}`}>
+                  <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'animate-pulse' : ''}`} />
                   {!sidebarCollapsed && (
                     <>
-                      <span className="text-sm font-medium flex-1 text-left">
-                        {item.label}
-                      </span>
-                      {isActive && (
-                        <FiChevronRight className="w-4 h-4 animate-pulse" />
-                      )}
+                      <span className="text-sm font-medium flex-1 text-left">{item.label}</span>
+                      {isActive && <FiChevronRight className="w-4 h-4 animate-pulse" />}
                     </>
                   )}
                 </div>
-
+                
                 {sidebarCollapsed && (
                   <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
                     {item.label}
@@ -269,9 +257,7 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
                   aria-label="Refresh data"
                   disabled={isRefreshing}
                 >
-                  <FiRefreshCw
-                    className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`}
-                  />
+                  <FiRefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
 
                 <button
@@ -298,7 +284,7 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
             {view === "scripts" && (
               <button
@@ -308,7 +294,7 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
                 <span className="font-medium">New Script</span>
               </button>
             )}
-
+            
             {view === "scripts" && (
               <div className="md:hidden flex items-center bg-white rounded-lg px-3 py-2 border border-gray-200 w-full sm:w-auto">
                 <FiSearch className="w-4 h-4 text-gray-400" />
@@ -324,17 +310,21 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
             )}
           </div>
 
-          {view === "scripts" && (
-            <ScriptList
-              key={refreshKey}
-              searchQuery={searchQuery}
-              onEditScript={handleOpenScriptForm}
-            />
-          )}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+            {view === "scripts" && (
+              <ScriptList
+                key={refreshKey}
+                searchQuery={searchQuery}
+                onEditScript={handleOpenScriptForm}
+              />
+            )}
 
-          {view === "voice-soundboard" && <VoiceSoundboard />}
+          
 
-          {view === "leads" && <Leads />}s
+            {view === "voice-soundboard" && <VoiceSoundboard />}
+            {view === "leads" && <Leads />}
+           
+          </div>
         </main>
       </div>
 

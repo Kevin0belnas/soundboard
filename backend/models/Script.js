@@ -22,26 +22,6 @@ const scriptSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    segments: {
-      type: [
-        {
-          index: { type: Number, required: true },
-          type: { type: String, enum: ["static", "dynamic"], required: true },
-          text: { type: String, required: true },
-          fileName: { type: String, default: "" },
-        },
-      ],
-      default: [],
-    },
-    sectionAudios: {
-      type: [
-        {
-          sectionIndex: { type: Number, required: true },
-          fileName: { type: String, required: true },
-        },
-      ],
-      default: [],
-    },
     voiceId: {
       type: String,
       default: "",

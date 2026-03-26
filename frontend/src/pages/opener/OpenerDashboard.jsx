@@ -232,18 +232,6 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
           })}
         </nav>
 
-        {/* Logout in sidebar - mobile only */}
-        <div className="lg:hidden mt-2 px-4">
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition disabled:opacity-50"
-          >
-            <FiLogOut className="w-5 h-5 shrink-0" />
-            <span className="text-sm font-medium">{isLoggingOut ? "Logging out..." : "Logout"}</span>
-          </button>
-        </div>
-
         {/* Version info */}
         {!sidebarCollapsed && (
           <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700/50">
@@ -269,16 +257,17 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                 >
                   <FiMenu className="w-6 h-6" />
                 </button>
+
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                     {pageTitle}
                   </h1>
-                  <p className="text-xs sm:text-sm text-gray-500">{pageSubtitle}</p>
+                  <p className="text-sm text-gray-500">{pageSubtitle}</p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
-                {/* Search - desktop only */}
+              <div className="flex items-center space-x-3">
+                {/* Search bar - only for scripts view */}
                 {currentView === "scripts" && (
                   <div className="hidden md:flex items-center bg-gray-100 rounded-lg px-3 py-2">
                     <FiSearch className="w-4 h-4 text-gray-400" />
@@ -293,17 +282,17 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                   </div>
                 )}
 
-                {/* Refresh - desktop only */}
                 <button
                   onClick={handleRefresh}
-                  className="hidden sm:block p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                  className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
                   aria-label="Refresh data"
                   disabled={isRefreshing}
                 >
-                  <FiRefreshCw className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`} />
+                  <FiRefreshCw
+                    className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`}
+                  />
                 </button>
 
-                {/* Notifications - always visible */}
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg relative"
@@ -313,15 +302,16 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
                 </button>
 
-                {/* Logout - desktop only, moved to sidebar on mobile */}
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="hidden lg:flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-lg hover:from-red-600 hover:to-red-700 transition shadow-lg shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="group flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-lg hover:from-red-600 hover:to-red-700 transition shadow-lg shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Logout"
                 >
-                  <FiLogOut className="w-4 h-4" />
-                  <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
+                  <FiLogOut className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  <span className="hidden sm:inline">
+                    {isLoggingOut ? "Logging out..." : "Logout"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -329,10 +319,10 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {/* Action buttons - only for scripts view */}
           {currentView === "scripts" && (
-            <div className="px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8 pb-6 flex flex-wrap gap-4 items-center justify-between">
+            <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
               <button
                 onClick={() => handleOpenScriptForm()}
                 className="group flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25"
@@ -356,23 +346,17 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
           )}
 
           {/* Content area */}
-          {currentView === "scripts" && (
-            <div className="mx-4 sm:mx-6 lg:mx-8 mb-4 sm:mb-6 lg:mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+            {currentView === "scripts" && (
               <ScriptsView 
                 searchQuery={searchQuery}
                 onEditScript={handleOpenScriptForm}
                 refreshKey={refreshKey}
               />
-            </div>
-          )}
-          
-          {currentView === "voice-soundboard" && (
-            <div className="mx-4 sm:mx-6 lg:mx-8 mb-4 sm:mb-6 lg:mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-              <VoiceSoundboard />
-            </div>
-          )}
-
-          {currentView === "leads" && <Leads />}
+            )}
+            {currentView === "voice-soundboard" && <VoiceSoundboard />}
+            {currentView === "leads" && <Leads />}
+          </div>
         </main>
       </div>
 

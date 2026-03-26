@@ -11,11 +11,14 @@ import {
   FiChevronDown,
   FiX,
   FiSearch,
-  FiRefreshCw, 
+  FiRefreshCw,
+  FiChevronLeft,
+  FiChevronRight,
+  FiChevronsLeft,
+  FiChevronsRight,
   FiLock,
 } from "react-icons/fi";
 import axios from "axios";
-import Pagination from '../../components/Pagination';
 
 // Create axios instance with base URL
 const api = axios.create({
@@ -294,7 +297,74 @@ export default function Contacts() {
   const tabs = [
     { id: "all", label: "All Contacts", icon: FiUser, count: stats.total },
     { id: "unassigned", label: "Unassigned", icon: FiUserX, count: stats.unassigned },
-  ]; 
+  ];
+
+  // Pagination Component (reusable)
+  const PaginationControls = () => (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-2">
+        <span className="text-sm text-gray-700">
+          Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+          <span className="font-medium">
+            {Math.min(currentPage * itemsPerPage, totalItems)}
+          </span>{' '}
+          of <span className="font-medium">{totalItems.toLocaleString()}</span> results
+        </span>
+        <select
+          value={itemsPerPage}
+          onChange={handleItemsPerPageChange}
+          className="ml-4 px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+        >
+          <option value={25}>25 / page</option>
+          <option value={50}>50 / page</option>
+          <option value={100}>100 / page</option>
+          <option value={250}>250 / page</option>
+          <option value={1000}>1000 / page</option>
+          <option value={2000}>2000 / page</option>
+        </select>
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        <button
+          onClick={goToFirstPage}
+          disabled={currentPage === 1}
+          className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          title="First page"
+        >
+          <FiChevronsLeft className="h-5 w-5" />
+        </button>
+        <button
+          onClick={goToPreviousPage}
+          disabled={currentPage === 1}
+          className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Previous page"
+        >
+          <FiChevronLeft className="h-5 w-5" />
+        </button>
+        
+        <span className="text-sm text-gray-700">
+          Page {currentPage} of {totalPages}
+        </span>
+        
+        <button
+          onClick={goToNextPage}
+          disabled={currentPage === totalPages}
+          className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Next page"
+        >
+          <FiChevronRight className="h-5 w-5" />
+        </button>
+        <button
+          onClick={goToLastPage}
+          disabled={currentPage === totalPages}
+          className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Last page"
+        >
+          <FiChevronsRight className="h-5 w-5" />
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -357,17 +427,7 @@ export default function Contacts() {
         {/* Top Pagination */}
         {!isLoading && totalItems > 0 && (
           <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-            <Pagination 
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onItemsPerPageChange={handleItemsPerPageChange} 
-            onFirst={goToFirstPage}
-            onPrev={goToPreviousPage}
-            onNext={goToNextPage}
-            onLast={goToLastPage}
-            />
+            <PaginationControls />
           </div>
         )}
 
@@ -623,17 +683,7 @@ export default function Contacts() {
         {/* Bottom Pagination */}
         {!isLoading && !paginationLoading && totalItems > 0 && (
           <div className="px-6 py-4 bg-white border-t border-gray-200">
-            <Pagination 
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onItemsPerPageChange={handleItemsPerPageChange} 
-            onFirst={goToFirstPage}
-            onPrev={goToPreviousPage}
-            onNext={goToNextPage}
-            onLast={goToLastPage}
-            />
+            <PaginationControls />
           </div>
         )}
       </div>
