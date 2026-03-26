@@ -69,9 +69,9 @@ function stripStageDirections(text) {
     .join("\n")
     .trim();
 }
+const { AUDIO_DIR, saveScriptAudioFile, generateTempAudio } = require("../services/ttsService");
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
-const AUDIO_DIR = path.join(__dirname, "..", "uploads", "audio");
 
 const SILENCE_PATH = path.join(AUDIO_DIR, "..", "silence_100ms.mp3");
 
@@ -235,59 +235,13 @@ async function generateAndSaveScriptAudio(
   await scriptDoc.save();
 
   return scriptDoc;
-
-  // const response = await fetch(
-  //   `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-  //   {
-  //     method: "POST",
-  //     headers: {
-  //       "Content-Type": "application/json",
-  //       "xi-api-key": apiKey,
-  //       Accept: "audio/mpeg",
-  //     },
-  //     body: JSON.stringify({
-  //       text: scriptDoc.content.trim(),
-  //       model_id: "eleven_multilingual_v2",
-  //     }),
-  //   }
-  // );
-
-  // if (!response.ok) {
-  //   const rawError = await response.text();
-  //   throw new Error(rawError || "ElevenLabs request failed");
-  // }
-
-  // const audioBuffer = Buffer.from(await response.arrayBuffer());
-
-  // if (oldAudioFileName) {
-  //   const oldFilePath = path.join(AUDIO_DIR, oldAudioFileName);
-  //   if (fs.existsSync(oldFilePath)) {
-  //     fs.unlinkSync(oldFilePath);
-  //   }
-  // }
-
-  // const safeTitle = sanitizeFileName(scriptDoc.title || "script");
-  // const fileName = `${scriptDoc._id}_${safeTitle}.mp3`;
-  // const filePath = path.join(AUDIO_DIR, fileName);
-
-  // fs.writeFileSync(filePath, audioBuffer);
-
-  // scriptDoc.audioFileName = fileName;
-  // scriptDoc.audioUrl = `/audio/${fileName}`;
-  // scriptDoc.audioStatus = "ready";
-  // scriptDoc.audioError = "";
-  // await scriptDoc.save();
-
-  // return scriptDoc;
 }
 
-// ---------------- GET ALL SCRIPTS ----------------
-// Helper function to create logs
 const createLog = async (req, action, details) => {
   try {
     const log = new Log({
       action,
-      user: req.user.userId,
+      user: req.user?.userId,
       details,
       ip: req.ip || req.connection.remoteAddress,
     });
@@ -298,7 +252,7 @@ const createLog = async (req, action, details) => {
   }
 };
 
-// Get all scripts (protected)
+// ---------------- GET ALL SCRIPTS ----------------
 router.get("/", authenticateToken, async (req, res) => {
   try {
     let query = {};
@@ -452,13 +406,17 @@ router.put("/:id", authenticateToken, async (req, res) => {
     // Update fields
     script.title = newTitle;
     script.content = newContent;
-    script.type = type || script.type;
+    script.type = newType;
     script.updatedAt = Date.now();
+
+    if (shouldRegenerate) {
+      script.audioStatus = "generating";
+      script.audioError = "";
+    }
 
     await script.save();
     await script.populate("author", "_id name email");
 
-    // CREATE LOG ENTRY
     await createLog(req, "update_script", {
       scriptId: script._id,
       title: script.title,
@@ -496,7 +454,6 @@ router.put("/:id", authenticateToken, async (req, res) => {
 router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
   try {
     const scriptId = req.params.id;
-
     const script = await Script.findById(scriptId);
 
     if (!script) {
@@ -543,7 +500,7 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
     await createLog(req, "error", {
       error: error.message,
       scriptId: req.params.id,
-      action: "update_script",
+      action: "regenerate_audio",
     });
 
     res.status(500).json({ error: error.message });
@@ -715,6 +672,7 @@ router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
         if (Date.now() - fs.statSync(fp).mtimeMs > 3600000) fs.unlinkSync(fp);
       } catch (_) {}
     });
+    const result = await generateTempAudio(text, scriptId || "audio");
 
     return res.json({
       success: true,
@@ -731,7 +689,6 @@ router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const scriptId = req.params.id;
-
     const script = await Script.findById(scriptId);
 
     if (!script) {
@@ -789,4 +746,4 @@ router.delete("/:id", authenticateToken, async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = router;W
