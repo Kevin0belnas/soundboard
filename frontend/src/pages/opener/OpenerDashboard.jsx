@@ -232,15 +232,17 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
           })}
         </nav>
 
-        {/* Logout in sidebar - mobile only */}
-        <div className="lg:hidden mt-2 px-4">
+        {/* Logout (Mobile) */}
+        <div className="lg:hidden px-4">
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition disabled:opacity-50"
+            className="w-full flex items-center space-x-3 px-4 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition disabled:opacity-50"
           >
             <FiLogOut className="w-5 h-5 shrink-0" />
-            <span className="text-sm font-medium">{isLoggingOut ? "Logging out..." : "Logout"}</span>
+            <span className="text-sm font-medium">
+              {isLoggingOut ? "Logging out..." : "Logout"}
+            </span>
           </button>
         </div>
 
@@ -303,7 +305,7 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                   <FiRefreshCw className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`} />
                 </button>
 
-                {/* Notifications - always visible */}
+                {/* Notifications */}
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg relative"
@@ -313,7 +315,7 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
                 </button>
 
-                {/* Logout - desktop only, moved to sidebar on mobile */}
+                {/* Logout (Desktop) */}
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}

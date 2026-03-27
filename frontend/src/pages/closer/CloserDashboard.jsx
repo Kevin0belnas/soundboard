@@ -215,6 +215,20 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
           })}
         </nav>
 
+        {/* Logout (Mobile) */}
+        <div className="lg:hidden px-4">
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="w-full flex items-center space-x-3 px-4 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition disabled:opacity-50"
+          >
+            <FiLogOut className="w-5 h-5 shrink-0" />
+            <span className="text-sm font-medium">
+              {isLoggingOut ? "Logging out..." : "Logout"}
+            </span>
+          </button>
+        </div>
+
         {!sidebarCollapsed && (
           <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700/50">
             <div className="text-xs text-gray-400">
@@ -282,16 +296,15 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
                   <FiBell className="w-5 h-5" />
                 </button>
 
+                {/* Logout (Desktop) */}
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="group flex items-center space-x-2 px-3 sm:px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-lg hover:from-red-600 hover:to-red-700 transition shadow-lg shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="hidden lg:flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-lg hover:from-red-600 hover:to-red-700 transition shadow-lg shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Logout"
                 >
-                  <FiLogOut className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                  <span className="hidden sm:inline">
-                    {isLoggingOut ? "Logging out..." : "Logout"}
-                  </span>
+                  <FiLogOut className="w-4 h-4" />
+                  <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
                 </button>
               </div>
             </div>
@@ -323,7 +336,6 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
               </div>
             )}
           </div>
-
           {view === "scripts" && (
             <ScriptList
               key={refreshKey}
@@ -331,9 +343,7 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
               onEditScript={handleOpenScriptForm}
             />
           )}
-
           {view === "voice-soundboard" && <VoiceSoundboard />}
-
           {view === "leads" && <Leads />}s
         </main>
       </div>

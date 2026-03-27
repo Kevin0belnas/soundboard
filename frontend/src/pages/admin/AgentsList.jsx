@@ -150,7 +150,7 @@ export default function AgentsList({ searchQuery: externalSearchQuery, onEditAge
               </option>
             ))}
           </select>
-        </div>
+        </div> 
       </div>
 
       {/* Error Message */}

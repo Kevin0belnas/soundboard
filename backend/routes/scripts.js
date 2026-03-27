@@ -5,6 +5,71 @@ const fs = require("fs");
 const path = require("path");
 const Script = require("../models/Script");
 const Log = require("../models/Log");
+const { parseScript } = require("../utils/parseScript");
+const { generateSegment } = require("../utils/generateSegment");
+const { stitchAudio } = require("../utils/stitchAudio");
+const { getCachedPath } = require("../utils/dynamicCache");
+// const { AUDIO_DIR, saveScriptAudioFile, generateTempAudio } = require("../services/ttsService");
+
+const DYNAMIC_PLACEHOLDER = /\[[^\]]+\]/;
+const STAGE_DIRECTION =
+  /^(\[PAUSE[^\]]*\]|Pause\.?(\s+Let them agree\.?)?(\s+Let them answer\.?)?(\s+Then transition\.?)?|Let them agree\.?|Let them answer\.?|Then transition\.?|Wait for (response|answer|reply)\.?|Transition\.?|Note:.*)$/i;
+
+function parseScriptSectionsBackend(content) {
+  if (!content) return [];
+  const lines = content.split("\n");
+  const sections = [];
+  let currentTitle = null;
+  let currentLines = [];
+
+  const isHeader = (line) => {
+    const t = line.trim();
+    return (
+      t.length > 0 &&
+      t.length < 80 &&
+      !t.startsWith("•") &&
+      !t.startsWith("-") &&
+      !/[.!?,:"\]]$/.test(t) &&
+      /^[A-Z]/.test(t) &&
+      !t.includes("[PAUSE]")
+    );
+  };
+
+  for (const line of lines) {
+    if (isHeader(line)) {
+      if (currentTitle)
+        sections.push({
+          title: currentTitle,
+          content: currentLines.join("\n").trim(),
+        });
+      else if (currentLines.join("").trim())
+        sections.push({
+          title: "Intro",
+          content: currentLines.join("\n").trim(),
+        });
+      currentTitle = line.trim();
+      currentLines = [];
+    } else {
+      currentLines.push(line);
+    }
+  }
+  if (currentTitle)
+    sections.push({
+      title: currentTitle,
+      content: currentLines.join("\n").trim(),
+    });
+  if (sections.length === 0)
+    sections.push({ title: "Script", content: content.trim() });
+  return sections;
+}
+
+function stripStageDirections(text) {
+  return text
+    .split("\n")
+    .filter((line) => !STAGE_DIRECTION.test(line.trim()))
+    .join("\n")
+    .trim();
+}
 const { AUDIO_DIR, saveScriptAudioFile, generateTempAudio } = require("../services/ttsService");
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
@@ -290,6 +355,7 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
   }
 });
 
+
 // ---------------- GENERATE TEMPORARY PERSONALIZED AUDIO ----------------
 router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
   try {
@@ -315,6 +381,64 @@ router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
   }
 });
 
+// ---------------- DELETE SCRIPT ----------------
+router.delete("/:id", authenticateToken, async (req, res) => {
+  try {
+    const scriptId = req.params.id;
+    const script = await Script.findById(scriptId);
+
+    if (!script) {
+      return res.status(404).json({ error: "Script not found" });
+    }
+
+    const isAuthor = script.author.toString() === req.user.userId;
+    const isAdmin = req.user.role === "admin";
+
+    if (!isAuthor && !isAdmin) {
+      await createLog(req, "unauthorized", {
+        scriptId,
+        userId: req.user.userId,
+        action: "delete_script",
+        message: "User attempted to delete a script they did not create",
+      });
+      return res.status(403).json({ error: "Only the creator or admin can delete this script" });
+    }
+
+    if (script.audioFileName) {
+      const filePath = path.join(AUDIO_DIR, script.audioFileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    const deletedScriptInfo = {
+      id: script._id,
+      title: script.title,
+      type: script.type,
+    };
+
+    await Script.findByIdAndDelete(scriptId);
+
+    await createLog(req, "delete_script", {
+      scriptId: deletedScriptInfo.id,
+      title: deletedScriptInfo.title,
+      type: deletedScriptInfo.type,
+      message: `Deleted script: ${deletedScriptInfo.title}`,
+    });
+
+    res.json({ message: "Script deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting script:", error);
+
+    await createLog(req, "error", {
+      error: error.message,
+      scriptId: req.params.id,
+      action: "delete_script",
+    });
+
+    res.status(500).json({ error: error.message });
+  }
+});
 // ---------------- DELETE SCRIPT ----------------
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
