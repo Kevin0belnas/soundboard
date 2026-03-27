@@ -16,18 +16,11 @@ import {
   FiSend,
   FiVolume2,
   FiCopy,
-  FiPauseCircle,
-  FiChevronLeft,
-  FiChevronRight,
-  FiChevronsLeft,
-  FiChevronsRight,
+  FiPauseCircle, 
 } from "react-icons/fi";
 import Pagination from "../../components/Pagination";
 
-// ─────────────────────────────────────────────
 // Script parsing helpers
-// ─────────────────────────────────────────────
-
 function parseScriptSections(content) {
   if (!content) return [];
 
@@ -53,9 +46,15 @@ function parseScriptSections(content) {
   for (const line of lines) {
     if (isSectionHeader(line)) {
       if (currentSection) {
-        sections.push({ title: currentSection, content: currentLines.join("\n").trim() });
+        sections.push({
+          title: currentSection,
+          content: currentLines.join("\n").trim(),
+        });
       } else if (currentLines.join("").trim().length > 0) {
-        sections.push({ title: "Intro", content: currentLines.join("\n").trim() });
+        sections.push({
+          title: "Intro",
+          content: currentLines.join("\n").trim(),
+        });
       }
       currentSection = line.trim();
       currentLines = [];
@@ -65,7 +64,10 @@ function parseScriptSections(content) {
   }
 
   if (currentSection) {
-    sections.push({ title: currentSection, content: currentLines.join("\n").trim() });
+    sections.push({
+      title: currentSection,
+      content: currentLines.join("\n").trim(),
+    });
   }
 
   if (sections.length === 0) {
@@ -97,11 +99,7 @@ function cleanTextForTTS(text) {
     })
     .join("\n")
     .trim();
-}
-
-// ─────────────────────────────────────────────
-// Axios instance
-// ─────────────────────────────────────────────
+} 
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const APP_BASE = API_BASE.replace(/\/api\/?$/, "");
@@ -117,22 +115,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// ─────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────
-
 export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
-  // ── tabs & leads ──
+  // Tabs and leads states
   const [activeTab, setActiveTab] = useState("my-leads");
   const [leads, setLeads] = useState([]);
   const [filteredLeads, setFilteredLeads] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ── notification ──
-  const [notification, setNotification] = useState({ show: false, type: "", message: "" });
+  const [notification, setNotification] = useState({
+    show: false,
+    type: "",
+    message: "",
+  });
 
-  // ── modals ──
+  // Modals states
   const [selectedLead, setSelectedLead] = useState(null);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -144,40 +141,44 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const [transferReason, setTransferReason] = useState("");
   const [loadingAgents, setLoadingAgents] = useState(false);
 
-  // ── script modal ──
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [scripts, setScripts] = useState([]);
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [selectedScript, setSelectedScript] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  // ── audio player ──
+  // Audio player states
   const [playingScriptId, setPlayingScriptId] = useState(null);
   const [pausedId, setPausedId] = useState(null);
   const [generatingAudio, setGeneratingAudio] = useState(false);
+  const [pauseAwaitingSectionIndex, setPauseAwaitingSectionIndex] =
+    useState(null);
   const audioRef = useRef(null);
   const isPlayingRef = useRef(false);
   const currentSectionRef = useRef(0);
   const sectionBlobCache = useRef({});
 
-  // ── script sections ──
+  // Script section states
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [completedSections, setCompletedSections] = useState([]);
   const [scriptSections, setScriptSections] = useState([]);
 
-  // ── opener/manager resolution ──
+  // Opener/manager resolution states
   const [openerName, setOpenerName] = useState("");
   const [managerName, setManagerName] = useState("");
   const [callManagerId, setCallManagerId] = useState("");
   const [openerAgents, setOpenerAgents] = useState([]);
 
-  // ── SIP / calling (used when showTransferButton is true, i.e. opener role) ──
+  // SIP/calling states
   const [callingLeadId, setCallingLeadId] = useState(null);
   const [liveCall, setLiveCall] = useState(null);
 
-  // ── user info ──
   const storedUser = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; }
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
   }, []);
 
   const userId =
@@ -188,26 +189,30 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     "";
   const userName = localStorage.getItem("name") || storedUser.name || "User";
   const userRole = localStorage.getItem("role") || storedUser.role || "opener";
-  const userExtension = storedUser.extension || localStorage.getItem("extension") || "";
-  const userDid = storedUser.didNumber || localStorage.getItem("didNumber") || "";
+  const userExtension =
+    storedUser.extension || localStorage.getItem("extension") || "";
+  const userDid =
+    storedUser.didNumber || localStorage.getItem("didNumber") || "";
 
-  // ── pagination ──
+  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // ─────────────────────────────────────────────
-  // Effects
-  // ─────────────────────────────────────────────
-
-  useEffect(() => { fetchLeads(); }, [activeTab, currentPage, itemsPerPage, statusFilter]);
-  useEffect(() => { filterLeadsBySearch(); }, [searchQuery, leads]);
+  useEffect(() => {
+    fetchLeads();
+  }, [activeTab, currentPage, itemsPerPage, statusFilter]);
+  useEffect(() => {
+    filterLeadsBySearch();
+  }, [searchQuery, leads]);
 
   useEffect(() => {
     document.body.style.overflow = showScriptModal ? "hidden" : "unset";
-    return () => { document.body.style.overflow = "unset"; };
+    return () => {
+      document.body.style.overflow = "unset";
+    };
   }, [showScriptModal]);
 
   useEffect(() => {
@@ -223,7 +228,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   useEffect(() => {
     if (selectedScript?.content) {
       const sections = parseScriptSections(
-        replaceScriptPlaceholders(selectedScript.content)
+        replaceScriptPlaceholders(selectedScript.content),
       );
       setScriptSections(sections);
       setActiveSectionIndex(0);
@@ -233,18 +238,64 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     }
   }, [selectedScript, selectedLead, callManagerId, openerName, managerName]);
 
-  // ─────────────────────────────────────────────
   // Helpers
-  // ─────────────────────────────────────────────
+  const summaryCards = [
+    {
+      label: "My Leads",
+      value: leads.filter(
+        (l) =>
+          l.assigned_to &&
+          (!l.rating || l.rating !== "Flagged") &&
+          !l.transferred_to,
+      ).length,
+      textColor: "text-gray-900",
+      bgColor: "bg-indigo-100",
+      iconColor: "text-indigo-600",
+      icon: FiUser,
+    },
+    {
+      label: "Flagged",
+      value: leads.filter((l) => l.rating === "Flagged").length,
+      textColor: "text-purple-600",
+      bgColor: "bg-purple-100",
+      iconColor: "text-purple-600",
+      icon: FiFlag,
+      sub: "Still assigned to you",
+    },
+    {
+      label: "Transferred",
+      value: leads.filter((l) => l.transferred_to).length,
+      textColor: "text-blue-600",
+      bgColor: "bg-blue-100",
+      iconColor: "text-blue-600",
+      icon: FiSend,
+      sub: "Sent to other agents",
+    },
+    {
+      label: "Declined",
+      value: leads.filter((l) => l.status === "Incompleted" && !l.assigned_to)
+        .length,
+      textColor: "text-red-600",
+      bgColor: "bg-red-100",
+      iconColor: "text-red-600",
+      icon: FiThumbsDown,
+      sub: "Removed from your list",
+    },
+  ];
 
   const showNotification = (type, message) => {
     setNotification({ show: true, type, message });
-    setTimeout(() => setNotification({ show: false, type: "", message: "" }), 3000);
+    setTimeout(
+      () => setNotification({ show: false, type: "", message: "" }),
+      3000,
+    );
   };
 
   const extractPrimaryPhone = (phoneValue = "") => {
     if (!phoneValue) return "";
-    return String(phoneValue).split(/[,;/|]/)[0].trim();
+    return String(phoneValue)
+      .split(/[,;/|]/)[0]
+      .trim();
   };
 
   const sanitizePhoneNumber = (phoneValue = "") =>
@@ -272,13 +323,9 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         /\[Opener Name\]/g,
         (!selectedLead?.transferred_to
           ? openerAgents.find((a) => a.id === callManagerId)?.name
-          : openerName) || "[Opener Name]"
+          : openerName) || "[Opener Name]",
       );
   };
-
-  // ─────────────────────────────────────────────
-  // Data fetching
-  // ─────────────────────────────────────────────
 
   const fetchScripts = async () => {
     setLoadingScripts(true);
@@ -291,7 +338,9 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
           : [];
 
       const filtered = raw.filter((s) =>
-        (scriptTypeFilter || ["admin", "opener", "closer", "general"]).includes(s.type)
+        (scriptTypeFilter || ["admin", "opener", "closer", "general"]).includes(
+          s.type,
+        ),
       );
       setScripts(filtered);
       setSelectedScript((prev) => {
@@ -308,7 +357,11 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   };
 
   const fetchLeads = async () => {
-    if (!userId) { setLeads([]); setFilteredLeads([]); return; }
+    if (!userId) {
+      setLeads([]);
+      setFilteredLeads([]);
+      return;
+    }
     setIsLoading(true);
     try {
       let endpoint = "";
@@ -321,7 +374,8 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       else if (activeTab === "transferred")
         endpoint = `/contacts/transferred-to/${userId}/page/${currentPage}/limit/${itemsPerPage}`;
 
-      if (statusFilter !== "all") endpoint += `?status=${encodeURIComponent(statusFilter)}`;
+      if (statusFilter !== "all")
+        endpoint += `?status=${encodeURIComponent(statusFilter)}`;
 
       const response = await api.get(endpoint);
       if (response.data?.success) {
@@ -331,10 +385,16 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         setTotalPages(response.data.pagination?.pages || 1);
         setTotalItems(response.data.pagination?.total || 0);
       } else {
-        setLeads([]); setFilteredLeads([]); setTotalPages(1); setTotalItems(0);
+        setLeads([]);
+        setFilteredLeads([]);
+        setTotalPages(1);
+        setTotalItems(0);
       }
     } catch {
-      setLeads([]); setFilteredLeads([]); setTotalPages(1); setTotalItems(0);
+      setLeads([]);
+      setFilteredLeads([]);
+      setTotalPages(1);
+      setTotalItems(0);
     } finally {
       setIsLoading(false);
     }
@@ -347,9 +407,13 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       if (response.data?.success) {
         let agents = response.data.data || [];
         if (userRole === "opener")
-          agents = agents.filter((a) => a.role === "closer" && String(a.id) !== String(userId));
+          agents = agents.filter(
+            (a) => a.role === "closer" && String(a.id) !== String(userId),
+          );
         else if (userRole === "closer")
-          agents = agents.filter((a) => a.role === "opener" && String(a.id) !== String(userId));
+          agents = agents.filter(
+            (a) => a.role === "opener" && String(a.id) !== String(userId),
+          );
         setAvailableAgents(agents);
       }
     } catch (error) {
@@ -360,54 +424,78 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   };
 
   const filterLeadsBySearch = () => {
-    if (!searchQuery.trim()) { setFilteredLeads(leads); return; }
+    if (!searchQuery.trim()) {
+      setFilteredLeads(leads);
+      return;
+    }
     const q = searchQuery.toLowerCase();
-    setFilteredLeads(leads.filter((l) =>
-      l.name?.toLowerCase().includes(q) ||
-      l.email?.toLowerCase().includes(q) ||
-      l.phone?.toLowerCase().includes(q) ||
-      l.book_title?.toLowerCase().includes(q) ||
-      l.publisher?.toLowerCase().includes(q) ||
-      l.author?.toLowerCase().includes(q) ||
-      l.comment?.toLowerCase().includes(q)
-    ));
+    setFilteredLeads(
+      leads.filter(
+        (l) =>
+          l.name?.toLowerCase().includes(q) ||
+          l.email?.toLowerCase().includes(q) ||
+          l.phone?.toLowerCase().includes(q) ||
+          l.book_title?.toLowerCase().includes(q) ||
+          l.publisher?.toLowerCase().includes(q) ||
+          l.author?.toLowerCase().includes(q) ||
+          l.comment?.toLowerCase().includes(q),
+      ),
+    );
   };
 
-  // ─────────────────────────────────────────────
   // Lead actions
-  // ─────────────────────────────────────────────
-
   const handleUpdateRating = async () => {
     if (!selectedLead || !selectedRating) return;
     try {
       const response = await api.post(`/contacts/${selectedLead.id}/rating`, {
-        rating: selectedRating, updatedBy: userId,
+        rating: selectedRating,
+        updatedBy: userId,
       });
       if (response.data?.success) {
         showNotification("success", response.data.message || "Lead updated");
-        setShowRatingModal(false); setSelectedRating(""); fetchLeads();
+        setShowRatingModal(false);
+        setSelectedRating("");
+        fetchLeads();
         if (selectedRating === "Decline")
           window.dispatchEvent(new CustomEvent("refreshContacts"));
       }
     } catch (error) {
-      showNotification("error", error.response?.data?.message || "Failed to update rating");
+      showNotification(
+        "error",
+        error.response?.data?.message || "Failed to update rating",
+      );
     }
   };
 
   const handleTransferLead = async () => {
     if (!selectedLead || !selectedTargetAgent || !transferReason.trim()) {
-      showNotification("warning", "Please select an agent and provide a reason"); return;
+      showNotification(
+        "warning",
+        "Please select an agent and provide a reason",
+      );
+      return;
     }
     try {
       const response = await api.post(`/contacts/${selectedLead.id}/transfer`, {
-        targetAgentId: selectedTargetAgent, reason: transferReason, transferredBy: userId,
+        targetAgentId: selectedTargetAgent,
+        reason: transferReason,
+        transferredBy: userId,
       });
       if (response.data?.success) {
-        showNotification("success", response.data.message || "Lead transferred");
-        setShowTransferModal(false); setSelectedTargetAgent(""); setTransferReason(""); fetchLeads();
+        showNotification(
+          "success",
+          response.data.message || "Lead transferred",
+        );
+        setShowTransferModal(false);
+        setSelectedTargetAgent("");
+        setTransferReason("");
+        fetchLeads();
       }
     } catch (error) {
-      showNotification("error", error.response?.data?.message || "Failed to transfer lead");
+      showNotification(
+        "error",
+        error.response?.data?.message || "Failed to transfer lead",
+      );
     }
   };
 
@@ -415,11 +503,15 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     if (!selectedLead || !commentText.trim()) return;
     try {
       const response = await api.post(`/contacts/${selectedLead.id}/comment`, {
-        comment: commentText, commentedBy: userId, userName,
+        comment: commentText,
+        commentedBy: userId,
+        userName,
       });
       if (response.data?.success) {
         showNotification("success", "Comment added successfully");
-        setShowCommentModal(false); setCommentText(""); fetchLeads();
+        setShowCommentModal(false);
+        setCommentText("");
+        fetchLeads();
       }
     } catch {
       showNotification("error", "Failed to add comment");
@@ -428,7 +520,9 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
   const handleCopyScript = async () => {
     try {
-      await navigator.clipboard.writeText(replaceScriptPlaceholders(selectedScript.content));
+      await navigator.clipboard.writeText(
+        replaceScriptPlaceholders(selectedScript.content),
+      );
       setCopied(true);
       showNotification("success", "Script copied to clipboard!");
       setTimeout(() => setCopied(false), 2000);
@@ -437,10 +531,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     }
   };
 
-  // ─────────────────────────────────────────────
   // SIP / Asterisk calling
-  // ─────────────────────────────────────────────
-
   const ensureSipMapped = async () => {
     if (!userId) throw new Error("Missing logged-in user ID");
     const ext = userExtension || "2002";
@@ -460,7 +551,10 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const handleMapMySipDevice = async () => {
     try {
       await ensureSipMapped();
-      showNotification("success", `SIP device mapped to extension ${userExtension || "2002"}`);
+      showNotification(
+        "success",
+        `SIP device mapped to extension ${userExtension || "2002"}`,
+      );
     } catch (error) {
       showNotification("error", error.message || "Failed to map SIP device");
     }
@@ -468,41 +562,77 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
   const handleStartCall = async () => {
     if (!selectedLead || !selectedScript) {
-      showNotification("warning", "Select a lead and a script first"); return;
+      showNotification("warning", "Select a lead and a script first");
+      return;
     }
     const phone = sanitizePhoneNumber(extractPrimaryPhone(selectedLead?.phone));
-    if (!phone) { showNotification("error", "No valid phone number found"); return; }
+    if (!phone) {
+      showNotification("error", "No valid phone number found");
+      return;
+    }
 
     const text = replaceScriptPlaceholders(selectedScript.content);
-    if (!text.trim()) { showNotification("error", "Script text is empty"); return; }
+    if (!text.trim()) {
+      showNotification("error", "Script text is empty");
+      return;
+    }
 
     try {
       setCallingLeadId(selectedLead.id);
-      setLiveCall({ callId: null, leadId: selectedLead.id, phoneNumber: phone, status: "mapping-sip" });
+      setLiveCall({
+        callId: null,
+        leadId: selectedLead.id,
+        phoneNumber: phone,
+        status: "mapping-sip",
+      });
       await ensureSipMapped();
-      setLiveCall((prev) => prev ? { ...prev, status: "starting-call" } : prev);
+      setLiveCall((prev) =>
+        prev ? { ...prev, status: "starting-call" } : prev,
+      );
 
       const response = await api.post("/asterisk/call-with-tts", {
-        leadId: selectedLead.id, phoneNumber: phone, agentId: userId, text,
+        leadId: selectedLead.id,
+        phoneNumber: phone,
+        agentId: userId,
+        text,
       });
 
       if (response.data?.success) {
-        setLiveCall({ callId: response.data.callId, leadId: selectedLead.id, phoneNumber: phone, status: "dialing-microsip" });
-        showNotification("success", "Call request sent. MicroSIP should ring first.");
+        setLiveCall({
+          callId: response.data.callId,
+          leadId: selectedLead.id,
+          phoneNumber: phone,
+          status: "dialing-microsip",
+        });
+        showNotification(
+          "success",
+          "Call request sent. MicroSIP should ring first.",
+        );
       } else {
         setLiveCall(null);
-        showNotification("error", response.data?.message || "Failed to start call");
+        showNotification(
+          "error",
+          response.data?.message || "Failed to start call",
+        );
       }
     } catch (error) {
       setLiveCall(null);
-      showNotification("error", error.response?.data?.message || error.message || "Failed to start call");
+      showNotification(
+        "error",
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to start call",
+      );
     } finally {
       setCallingLeadId(null);
     }
   };
 
   const handleHangupCall = async () => {
-    if (!liveCall?.callId) { showNotification("warning", "No active call"); return; }
+    if (!liveCall?.callId) {
+      showNotification("warning", "No active call");
+      return;
+    }
     try {
       await api.post("/asterisk/hangup", { callId: liveCall.callId });
       showNotification("success", "Call ended");
@@ -518,15 +648,12 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       "mapping-sip": "Mapping SIP device...",
       "starting-call": "Starting call...",
       "dialing-microsip": "Dialing MicroSIP...",
-      "bridged": "In call",
+      bridged: "In call",
     };
     return map[status] || status || "";
   };
 
-  // ─────────────────────────────────────────────
-  // Audio player
-  // ─────────────────────────────────────────────
-
+  // Audio player helpers
   const stopAllAudio = () => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -537,6 +664,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     setPlayingScriptId(null);
     setPausedId(null);
     setGeneratingAudio(false);
+    setPauseAwaitingSectionIndex(null);
   };
 
   const handlePauseAudio = () => {
@@ -556,6 +684,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       setPausedId(null);
     } else {
       setPausedId(null);
+      setPauseAwaitingSectionIndex(null);
       isPlayingRef.current = true;
       setPlayingScriptId(selectedScript._id);
       playSectionAudio(currentSectionRef.current);
@@ -566,7 +695,10 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     if (!selectedScript || !isPlayingRef.current) return;
 
     const section = scriptSections[sectionIdx];
-    if (!section) { stopAllAudio(); return; }
+    if (!section) {
+      stopAllAudio();
+      return;
+    }
 
     // Skip already completed sections
     if (completedSections.includes(sectionIdx)) {
@@ -577,7 +709,9 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
     setActiveSectionIndex(sectionIdx);
     currentSectionRef.current = sectionIdx;
-    document.getElementById(`section-${sectionIdx}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    document
+      .getElementById(`section-${sectionIdx}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
     const cacheKey = `${selectedScript._id}_${sectionIdx}`;
     let audioUrl = sectionBlobCache.current[cacheKey] || null;
@@ -585,8 +719,9 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     if (!audioUrl) {
       setGeneratingAudio(true);
 
-      // Build cleaned, resolved text for this section
-      const resolvedText = removeOpenerPlaceholder(cleanTextForTTS(section.content))
+      const resolvedText = removeOpenerPlaceholder(
+        cleanTextForTTS(section.content),
+      )
         .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
         .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
         .replace(/\[Your Name\]/g, localStorage.getItem("name") || "User")
@@ -595,7 +730,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
           /\[Opener Name\]/g,
           (!selectedLead?.transferred_to
             ? openerAgents.find((a) => a.id === callManagerId)?.name
-            : openerName) || ""
+            : openerName) || "",
         );
 
       if (!resolvedText.trim()) {
@@ -616,7 +751,8 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
         if (!response.data?.success) {
           showNotification("error", "Failed to generate section audio");
-          stopAllAudio(); return;
+          stopAllAudio();
+          return;
         }
 
         audioUrl = response.data.audioUrl.startsWith("http")
@@ -626,7 +762,8 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       } catch (err) {
         console.error("Section audio error:", err);
         showNotification("error", "Audio generation failed");
-        stopAllAudio(); return;
+        stopAllAudio();
+        return;
       } finally {
         setGeneratingAudio(false);
       }
@@ -648,7 +785,10 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       setCompletedSections((prev) => [...prev, sectionIdx]);
 
       const nextIdx = sectionIdx + 1;
-      if (!scriptSections[nextIdx]) { stopAllAudio(); return; }
+      if (!scriptSections[nextIdx]) {
+        stopAllAudio();
+        return;
+      }
 
       const hasPause =
         section.content.includes("[PAUSE]") ||
@@ -657,9 +797,11 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       if (hasPause) {
         isPlayingRef.current = false;
         setPlayingScriptId(null);
+        setPauseAwaitingSectionIndex(sectionIdx);
         setActiveSectionIndex(nextIdx);
         currentSectionRef.current = nextIdx;
       } else {
+        setPauseAwaitingSectionIndex(null);
         currentSectionRef.current = nextIdx;
         playSectionAudio(nextIdx);
       }
@@ -669,24 +811,31 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const handlePlayAudio = async () => {
     if (!selectedScript) return;
 
-    if (isPlayingRef.current) { stopAllAudio(); return; }
-    if (pausedId === selectedScript._id) { handleResumeAudio(); return; }
+    if (isPlayingRef.current) {
+      stopAllAudio();
+      return;
+    }
+    if (pausedId === selectedScript._id) {
+      handleResumeAudio();
+      return;
+    }
 
     // Fresh start from active section
-    const startSection = Math.max(0, Math.min(activeSectionIndex, scriptSections.length - 1));
+    const startSection = Math.max(
+      0,
+      Math.min(activeSectionIndex, scriptSections.length - 1),
+    );
     isPlayingRef.current = true;
     setPlayingScriptId(selectedScript._id);
     setPausedId(null);
+    setPauseAwaitingSectionIndex(null);
     currentSectionRef.current = startSection;
     setActiveSectionIndex(startSection);
     setCompletedSections((prev) => prev.filter((idx) => idx !== startSection));
     playSectionAudio(startSection);
   };
 
-  // ─────────────────────────────────────────────
   // Modal helpers
-  // ─────────────────────────────────────────────
-
   const closeScriptModal = () => {
     stopAllAudio();
     setShowScriptModal(false);
@@ -708,7 +857,10 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         const res = await fetch(`${APP_BASE}/api/users/${id}/name`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (res.ok) { const d = await res.json(); return d.name || ""; }
+        if (res.ok) {
+          const d = await res.json();
+          return d.name || "";
+        }
       } catch {}
       return "";
     };
@@ -736,15 +888,15 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     await fetchScripts();
   };
 
-  // ─────────────────────────────────────────────
   // UI helpers
-  // ─────────────────────────────────────────────
-
   const goToFirstPage = () => setCurrentPage(1);
   const goToLastPage = () => setCurrentPage(totalPages);
   const goToPreviousPage = () => setCurrentPage((p) => Math.max(1, p - 1));
   const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
-  const handleItemsPerPageChange = (e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); };
+  const handleItemsPerPageChange = (e) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1);
+  };
 
   const getStatusColor = (status) => {
     const map = {
@@ -788,61 +940,48 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   };
 
   const tabs = [
-    { id: "my-leads", label: "My Leads", icon: FiUserCheck, color: "indigo", description: "Leads currently assigned to you" },
-    { id: "flagged", label: "Flagged", icon: FiFlag, color: "purple", description: "Flagged leads" },
-    { id: "transferred", label: "Transferred to Me", icon: FiSend, color: "blue", description: "Leads transferred to you" },
-    { id: "declined", label: "Declined", icon: FiThumbsDown, color: "red", description: "Leads you declined" },
+    {
+      id: "my-leads",
+      label: "My Leads",
+      icon: FiUserCheck,
+      color: "indigo",
+      description: "Leads currently assigned to you",
+    },
+    {
+      id: "flagged",
+      label: "Flagged",
+      icon: FiFlag,
+      color: "purple",
+      description: "Flagged leads",
+    },
+    {
+      id: "transferred",
+      label: "Transferred to Me",
+      icon: FiSend,
+      color: "blue",
+      description: "Leads transferred to you",
+    },
+    {
+      id: "declined",
+      label: "Declined",
+      icon: FiThumbsDown,
+      color: "red",
+      description: "Leads you declined",
+    },
   ];
-
-  const PaginationControls = () => (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center space-x-2">
-        <span className="text-sm text-gray-700">
-          Showing{" "}
-          <span className="font-medium">{totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</span>
-          {" "}to{" "}
-          <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalItems)}</span>
-          {" "}of{" "}
-          <span className="font-medium">{totalItems.toLocaleString()}</span> leads
-        </span>
-        <select value={itemsPerPage} onChange={handleItemsPerPageChange}
-          className="ml-4 px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
-          <option value={25}>25 / page</option>
-          <option value={50}>50 / page</option>
-          <option value={100}>100 / page</option>
-        </select>
-      </div>
-      <div className="flex items-center space-x-1">
-        <button onClick={goToFirstPage} disabled={currentPage === 1} className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50">
-          <FiChevronsLeft className="h-4 w-4" />
-        </button>
-        <button onClick={goToPreviousPage} disabled={currentPage === 1} className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50">
-          <FiChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-sm text-gray-700 px-2">Page {currentPage} of {totalPages}</span>
-        <button onClick={goToNextPage} disabled={currentPage === totalPages} className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50">
-          <FiChevronRight className="h-4 w-4" />
-        </button>
-        <button onClick={goToLastPage} disabled={currentPage === totalPages} className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50">
-          <FiChevronsRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-
-  // ─────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
-
-      {/* Notification */}
       {notification.show && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${
-          notification.type === "success" ? "bg-green-500" :
-          notification.type === "error" ? "bg-red-500" : "bg-yellow-500"
-        }`}>
+        <div
+          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${
+            notification.type === "success"
+              ? "bg-green-500"
+              : notification.type === "error"
+                ? "bg-red-500"
+                : "bg-yellow-500"
+          }`}
+        >
           {notification.message}
         </div>
       )}
@@ -854,9 +993,14 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
             <div>
               <p className="text-sm font-semibold text-gray-900">Active Call</p>
               <p className="text-xs text-gray-500">{liveCall.phoneNumber}</p>
-              <p className="text-xs text-indigo-500">{formatLiveCallStatus(liveCall.status)}</p>
+              <p className="text-xs text-indigo-500">
+                {formatLiveCallStatus(liveCall.status)}
+              </p>
             </div>
-            <button onClick={handleHangupCall} className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
+            <button
+              onClick={handleHangupCall}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+            >
               Hang Up
             </button>
           </div>
@@ -867,14 +1011,33 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       {showCommentModal && selectedLead && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Add Comment for {selectedLead.name}</h3>
-            <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)}
+            <h3 className="text-lg font-semibold mb-4">
+              Add Comment for {selectedLead.name}
+            </h3>
+            <textarea
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
               placeholder="Enter your comment or note..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[120px]"
-              autoFocus />
+              autoFocus
+            />
             <div className="flex justify-end space-x-3 mt-4">
-              <button onClick={() => { setShowCommentModal(false); setCommentText(""); }} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-              <button onClick={handleAddComment} disabled={!commentText.trim()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">Add Comment</button>
+              <button
+                onClick={() => {
+                  setShowCommentModal(false);
+                  setCommentText("");
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddComment}
+                disabled={!commentText.trim()}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                Add Comment
+              </button>
             </div>
           </div>
         </div>
@@ -884,15 +1047,32 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       {showRatingModal && selectedLead && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Update Lead: {selectedLead.name}</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              Update Lead: {selectedLead.name}
+            </h3>
             <p className="text-sm text-gray-600 mb-4">Choose an option:</p>
             <div className="space-y-3">
               {[
-                { val: "Flagged", icon: FiFlag, color: "purple", label: "Flagged", sub: "Lead stays assigned to you" },
-                { val: "Decline", icon: FiThumbsDown, color: "red", label: "Decline", sub: "Lead removed from your list" },
+                {
+                  val: "Flagged",
+                  icon: FiFlag,
+                  color: "purple",
+                  label: "Flagged",
+                  sub: "Lead stays assigned to you",
+                },
+                {
+                  val: "Decline",
+                  icon: FiThumbsDown,
+                  color: "red",
+                  label: "Decline",
+                  sub: "Lead removed from your list",
+                },
               ].map(({ val, icon: Icon, color, label, sub }) => (
-                <button key={val} onClick={() => setSelectedRating(val)}
-                  className={`w-full p-3 rounded-lg border-2 transition ${selectedRating === val ? `border-${color}-500 bg-${color}-50` : "border-gray-200 hover:border-gray-300"}`}>
+                <button
+                  key={val}
+                  onClick={() => setSelectedRating(val)}
+                  className={`w-full p-3 rounded-lg border-2 transition ${selectedRating === val ? `border-${color}-500 bg-${color}-50` : "border-gray-200 hover:border-gray-300"}`}
+                >
                   <div className="flex items-center">
                     <Icon className={`h-5 w-5 text-${color}-500 mr-2`} />
                     <div className="text-left">
@@ -904,8 +1084,22 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
               ))}
             </div>
             <div className="flex justify-end space-x-3 mt-6">
-              <button onClick={() => { setShowRatingModal(false); setSelectedRating(""); }} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-              <button onClick={handleUpdateRating} disabled={!selectedRating} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">Update</button>
+              <button
+                onClick={() => {
+                  setShowRatingModal(false);
+                  setSelectedRating("");
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateRating}
+                disabled={!selectedRating}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                Update
+              </button>
             </div>
           </div>
         </div>
@@ -916,35 +1110,73 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Transfer Lead: {selectedLead.name}</h3>
-              <button onClick={() => { setShowTransferModal(false); setSelectedTargetAgent(""); setTransferReason(""); }} className="text-gray-400 hover:text-gray-600">
+              <h3 className="text-lg font-semibold">
+                Transfer Lead: {selectedLead.name}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowTransferModal(false);
+                  setSelectedTargetAgent("");
+                  setTransferReason("");
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
                 <FiX className="h-5 w-5" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">This lead will be flagged and transferred to the selected agent.</p>
+            <p className="text-sm text-gray-600 mb-4">
+              This lead will be flagged and transferred to the selected agent.
+            </p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Select Agent</label>
-                <select value={selectedTargetAgent} onChange={(e) => setSelectedTargetAgent(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Select Agent
+                </label>
+                <select
+                  value={selectedTargetAgent}
+                  onChange={(e) => setSelectedTargetAgent(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
                   <option value="">Select an agent...</option>
-                  {loadingAgents ? <option disabled>Loading...</option> :
+                  {loadingAgents ? (
+                    <option disabled>Loading...</option>
+                  ) : (
                     availableAgents.map((a) => (
-                      <option key={a.id} value={a.id}>{a.name} ({a.role}) - {a.email}</option>
-                    ))}
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.role}) - {a.email}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Reason</label>
-                <textarea value={transferReason} onChange={(e) => setTransferReason(e.target.value)}
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Transfer Reason
+                </label>
+                <textarea
+                  value={transferReason}
+                  onChange={(e) => setTransferReason(e.target.value)}
                   placeholder="Enter reason for transfer..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[100px]" />
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[100px]"
+                />
               </div>
             </div>
             <div className="flex justify-end space-x-3 mt-6">
-              <button onClick={() => { setShowTransferModal(false); setSelectedTargetAgent(""); setTransferReason(""); }} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-              <button onClick={handleTransferLead} disabled={!selectedTargetAgent || !transferReason.trim()}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center">
+              <button
+                onClick={() => {
+                  setShowTransferModal(false);
+                  setSelectedTargetAgent("");
+                  setTransferReason("");
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTransferLead}
+                disabled={!selectedTargetAgent || !transferReason.trim()}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center"
+              >
                 <FiSend className="mr-2 h-4 w-4" /> Transfer & Flag
               </button>
             </div>
@@ -952,58 +1184,81 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         </div>
       )}
 
-      {/* ── Script Modal ── */}
+      {/* Script Modal */}
       {showScriptModal && selectedLead && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
-          role="dialog" aria-modal="true"
-          onMouseDown={(e) => { if (e.target === e.currentTarget) closeScriptModal(); }}
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeScriptModal();
+          }}
         >
           <div className="relative h-full w-full p-3 sm:p-6 flex items-center justify-center">
             <div className="bg-white w-full max-w-6xl rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] flex flex-col">
-
-              {/* Modal header */}
+              {/* Script modal header */}
               <div className="flex items-start justify-between gap-4 p-4 sm:p-5 border-b border-gray-200 bg-gray-50 flex-shrink-0">
                 <div className="min-w-0">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">Scripts for {selectedLead.name}</h3>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">Book: "{selectedLead.book_title}"</p>
-                  
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                    Scripts for {selectedLead.name}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">
+                    Book: "{selectedLead.book_title}"
+                  </p>
                 </div>
-                <button onClick={closeScriptModal}
-                  className="shrink-0 inline-flex items-center justify-center rounded-md p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100">
+                <button
+                  onClick={closeScriptModal}
+                  className="shrink-0 inline-flex items-center justify-center rounded-md p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                >
                   <FiX className="h-5 w-5" />
                 </button>
               </div>
 
               <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
-
-                {/* Left: script list (desktop) */}
-                <div className="hidden lg:flex lg:w-[240px] border-r border-gray-200 flex-col flex-shrink-0 bg-gray-50">
+                {/* Script list (Desktop) */}
+                <div className="hidden lg:flex lg:w-[240px] xl:w-[260px] border-r border-gray-200 flex-col flex-shrink-0 bg-gray-50">
                   <div className="px-4 py-3 border-b border-gray-200">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Templates</p>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Templates
+                    </p>
                   </div>
                   <div className="flex-1 overflow-y-auto p-3 space-y-1">
                     {loadingScripts ? (
-                      <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" /></div>
+                      <div className="flex justify-center py-8">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" />
+                      </div>
                     ) : scripts.length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-8">No scripts</p>
+                      <p className="text-sm text-gray-400 text-center py-8">
+                        No scripts
+                      </p>
                     ) : (
                       scripts.map((script) => (
-                        <button key={script._id} onClick={() => setSelectedScript(script)}
+                        <button
+                          key={script._id}
+                          onClick={() => setSelectedScript(script)}
                           className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all ${
                             selectedScript?._id === script._id
                               ? "border-indigo-300 bg-indigo-50"
                               : "border-transparent hover:bg-white hover:border-gray-200"
-                          }`}>
+                          }`}
+                        >
                           <div className="flex items-center gap-2">
                             {playingScriptId === script._id && (
                               <FiVolume2 className="h-3.5 w-3.5 text-green-600 animate-pulse flex-shrink-0" />
                             )}
                             <div className="min-w-0">
-                              <p className={`text-sm font-medium truncate ${selectedScript?._id === script._id ? "text-indigo-700" : "text-gray-900"}`}>
+                              <p
+                                className={`text-sm font-medium truncate ${
+                                  selectedScript?._id === script._id
+                                    ? "text-indigo-700"
+                                    : "text-gray-900"
+                                }`}
+                              >
                                 {script.title}
                               </p>
-                              <p className="text-xs text-gray-400 mt-0.5">{script.type}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {script.type}
+                              </p>
                             </div>
                           </div>
                         </button>
@@ -1012,86 +1267,135 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                   </div>
                 </div>
 
-                {/* Mobile script selector */}
+                {/* Script selector (mobile dropdown) */}
                 <div className="lg:hidden border-b border-gray-200 p-3 flex-shrink-0">
-                  <select value={selectedScript?._id || ""} onChange={(e) => {
-                    const next = scripts.find((s) => s._id === e.target.value);
-                    if (next) setSelectedScript(next);
-                  }} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    {scripts.map((s) => <option key={s._id} value={s._id}>{s.title}</option>)}
+                  <select
+                    value={selectedScript?._id || ""}
+                    onChange={(e) => {
+                      const next = scripts.find(
+                        (s) => s._id === e.target.value,
+                      );
+                      if (next) setSelectedScript(next);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {scripts.map((s) => (
+                      <option key={s._id} value={s._id}>
+                        {playingScriptId === s._id ? "▶ " : ""}
+                        {s.title}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                {/* Right: script content */}
+                {/* Script content */}
                 {selectedScript ? (
-                  <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+                    <div className="px-4 sm:px-5 py-3 border-b border-gray-200 flex-shrink-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-semibold text-gray-900 truncate">
+                            {selectedScript.title}
+                          </h4>
+                          {selectedScript.author && (
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              Created by {selectedScript.author.name}
+                            </p>
+                          )}
+                        </div>
 
-                    {/* Script topbar */}
-                    <div className="px-4 sm:px-5 py-3 border-b border-gray-200 flex items-center justify-between gap-3 flex-shrink-0">
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-semibold text-gray-900 truncate">{selectedScript.title}</h4>
-                        {selectedScript.author && (
-                          <p className="text-xs text-gray-400 mt-0.5">Created by {selectedScript.author.name}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                        {/* Call button — only shown when showTransferButton prop is true (opener) */}
-                        {showTransferButton && (
-                          <button onClick={handleStartCall}
-                            disabled={!selectedLead || !selectedScript || callingLeadId === selectedLead?.id}
-                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg transition disabled:opacity-50">
-                            <FiPhone className="h-3.5 w-3.5 mr-1.5" />
-                            {callingLeadId === selectedLead?.id ? "Calling..." : "Call Lead"}
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 flex-shrink-0">
+                          {showTransferButton && (
+                            <button
+                              onClick={handleStartCall}
+                              disabled={
+                                !selectedLead ||
+                                !selectedScript ||
+                                callingLeadId === selectedLead?.id
+                              }
+                              className="inline-flex items-center whitespace-nowrap px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg transition disabled:opacity-50"
+                            >
+                              <FiPhone className="h-3.5 w-3.5 mr-1.5" />
+                              {callingLeadId === selectedLead?.id
+                                ? "Calling..."
+                                : "Call Lead"}
+                            </button>
+                          )}
+
+                          <button
+                            onClick={handlePlayAudio}
+                            disabled={generatingAudio}
+                            className={`inline-flex items-center whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-lg border transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                              playingScriptId === selectedScript._id
+                                ? "text-red-600 border-red-200 bg-red-50 hover:bg-red-100"
+                                : "text-green-700 border-green-200 bg-green-50 hover:bg-green-100"
+                            }`}
+                          >
+                            <FiVolume2
+                              className={`h-3.5 w-3.5 mr-1.5 ${
+                                playingScriptId === selectedScript._id
+                                  ? "animate-pulse"
+                                  : ""
+                              }`}
+                            />
+                            {generatingAudio
+                              ? "Generating..."
+                              : playingScriptId === selectedScript._id
+                                ? "Stop"
+                                : pausedId === selectedScript._id
+                                  ? "Resume"
+                                  : "Play"}
                           </button>
-                        )}
 
-                        {/* Play / Stop / Resume */}
-                        <button onClick={handlePlayAudio} disabled={generatingAudio}
-                          className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                            playingScriptId === selectedScript._id
-                              ? "text-red-600 border-red-200 bg-red-50 hover:bg-red-100"
-                              : "text-green-700 border-green-200 bg-green-50 hover:bg-green-100"
-                          }`}>
-                          <FiVolume2 className={`h-3.5 w-3.5 mr-1.5 ${playingScriptId === selectedScript._id ? "animate-pulse" : ""}`} />
-                          {generatingAudio ? "Generating..." :
-                            playingScriptId === selectedScript._id ? "Stop" :
-                            pausedId === selectedScript._id ? "Resume" : "Play"}
-                        </button>
+                          {playingScriptId === selectedScript._id && (
+                            <button
+                              onClick={handlePauseAudio}
+                              className="inline-flex items-center whitespace-nowrap px-3 py-1.5 text-xs font-medium text-amber-700 border border-amber-200 bg-amber-50 hover:bg-amber-100 rounded-lg transition"
+                            >
+                              <FiPauseCircle className="h-3.5 w-3.5 mr-1.5" />{" "}
+                              Pause
+                            </button>
+                          )}
 
-                        {/* Pause — only shown while playing */}
-                        {playingScriptId === selectedScript._id && (
-                          <button onClick={handlePauseAudio}
-                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-amber-700 border border-amber-200 bg-amber-50 hover:bg-amber-100 rounded-lg transition">
-                            <FiPauseCircle className="h-3.5 w-3.5 mr-1.5" /> Pause
+                          <button
+                            onClick={handleCopyScript}
+                            className="inline-flex items-center whitespace-nowrap px-3 py-1.5 text-xs font-medium text-indigo-700 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition"
+                          >
+                            <FiCopy className="h-3.5 w-3.5 mr-1.5" />
+                            {copied ? "Copied!" : "Copy"}
                           </button>
-                        )}
-
-                        <button onClick={handleCopyScript}
-                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-indigo-700 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition">
-                          <FiCopy className="h-3.5 w-3.5 mr-1.5" />
-                          {copied ? "Copied!" : "Copy"}
-                        </button>
+                        </div>
                       </div>
                     </div>
 
                     {/* Section nav pills */}
                     {scriptSections.length > 1 && (
-                      <div className="px-4 sm:px-5 py-2.5 border-b border-gray-200 flex gap-2 flex-wrap flex-shrink-0 bg-gray-50">
+                      <div className="px-4 sm:px-5 py-2.5 border-b border-gray-200 flex gap-2 overflow-x-auto flex-shrink-0 bg-gray-50">
                         {scriptSections.map((sec, idx) => (
-                          <button key={idx}
+                          <button
+                            key={idx}
                             onClick={() => {
                               setActiveSectionIndex(idx);
                               currentSectionRef.current = idx;
-                              document.getElementById(`section-${idx}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                              document
+                                .getElementById(`section-${idx}`)
+                                ?.scrollIntoView({
+                                  behavior: "smooth",
+                                  block: "nearest",
+                                });
                             }}
-                            className={`px-3 py-1 rounded-full text-xs font-medium border transition whitespace-nowrap ${
+                            className={`px-3 py-1 rounded-full text-xs font-medium border transition whitespace-nowrap flex-shrink-0 ${
                               completedSections.includes(idx)
                                 ? "bg-gray-100 text-gray-400 border-gray-200 line-through"
                                 : activeSectionIndex === idx
                                   ? "bg-indigo-600 text-white border-indigo-600"
                                   : "bg-white text-gray-600 border-gray-300 hover:border-indigo-300 hover:text-indigo-600"
-                            }`}>
-                            {sec.title.length > 22 ? sec.title.slice(0, 22) + "…" : sec.title}
+                            }`}
+                          >
+                            {sec.title.length > 22
+                              ? sec.title.slice(0, 22) + "…"
+                              : sec.title}
                           </button>
                         ))}
                       </div>
@@ -1101,105 +1405,160 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                     <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3">
                       {scriptSections.length > 0 ? (
                         scriptSections.map((sec, idx) => (
-                          <div key={idx} id={`section-${idx}`}
+                          <div
+                            key={idx}
+                            id={`section-${idx}`}
                             className={`rounded-xl border transition-all overflow-hidden ${
-                              completedSections.includes(idx) ? "opacity-40 border-gray-200" :
-                              activeSectionIndex === idx ? "border-indigo-300 ring-1 ring-indigo-100" :
-                              "border-gray-200"
-                            }`}>
-
+                              completedSections.includes(idx)
+                                ? "opacity-40 border-gray-200"
+                                : activeSectionIndex === idx
+                                  ? "border-indigo-300 ring-1 ring-indigo-100"
+                                  : "border-gray-200"
+                            }`}
+                          >
                             {/* Section header row */}
                             <div
                               className={`px-4 py-2.5 flex items-center justify-between cursor-pointer select-none ${
-                                completedSections.includes(idx) ? "bg-gray-50" :
-                                activeSectionIndex === idx ? "bg-indigo-50" :
-                                "bg-gray-50 hover:bg-gray-100"
+                                completedSections.includes(idx)
+                                  ? "bg-gray-50"
+                                  : activeSectionIndex === idx
+                                    ? "bg-indigo-50"
+                                    : "bg-gray-50 hover:bg-gray-100"
                               }`}
-                              onClick={() => { setActiveSectionIndex(idx); currentSectionRef.current = idx; }}>
+                              onClick={() => {
+                                setActiveSectionIndex(idx);
+                                currentSectionRef.current = idx;
+                              }}
+                            >
                               <div className="flex items-center gap-2 min-w-0">
                                 {completedSections.includes(idx) ? (
-                                  <svg className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <svg
+                                    className="h-3.5 w-3.5 text-gray-400 flex-shrink-0"
+                                    viewBox="0 0 14 14"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                  >
                                     <polyline points="2,7 6,11 12,3" />
                                   </svg>
-                                ) : activeSectionIndex === idx && playingScriptId === selectedScript._id ? (
+                                ) : activeSectionIndex === idx &&
+                                  playingScriptId === selectedScript._id ? (
                                   <FiVolume2 className="h-3.5 w-3.5 text-indigo-500 animate-pulse flex-shrink-0" />
                                 ) : (
-                                  <div className={`h-2 w-2 rounded-full flex-shrink-0 ${activeSectionIndex === idx ? "bg-indigo-500" : "bg-gray-300"}`} />
+                                  <div
+                                    className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                                      activeSectionIndex === idx
+                                        ? "bg-indigo-500"
+                                        : "bg-gray-300"
+                                    }`}
+                                  />
                                 )}
-                                <span className={`text-xs font-semibold truncate ${
-                                  completedSections.includes(idx) ? "text-gray-400 line-through" :
-                                  activeSectionIndex === idx ? "text-indigo-700" : "text-gray-700"
-                                }`}>
+                                <span
+                                  className={`text-xs truncate ${
+                                    completedSections.includes(idx)
+                                      ? "font-normal text-gray-400 line-through"
+                                      : activeSectionIndex === idx
+                                        ? "font-medium text-indigo-700"
+                                        : "font-normal text-gray-700"
+                                  }`}
+                                >
                                   {sec.title}
                                 </span>
-                                {activeSectionIndex === idx && !completedSections.includes(idx) && (
-                                  <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium flex-shrink-0">
-                                    {playingScriptId === selectedScript._id ? "playing" : "active"}
-                                  </span>
-                                )}
+                                {activeSectionIndex === idx &&
+                                  !completedSections.includes(idx) && (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium flex-shrink-0">
+                                      {playingScriptId === selectedScript._id
+                                        ? "playing"
+                                        : "active"}
+                                    </span>
+                                  )}
                               </div>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setCompletedSections((prev) =>
-                                    prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]
+                                    prev.includes(idx)
+                                      ? prev.filter((i) => i !== idx)
+                                      : [...prev, idx],
                                   );
                                   if (!completedSections.includes(idx)) {
-                                    const next = scriptSections.findIndex((_, i) => i > idx && !completedSections.includes(i));
-                                    if (next !== -1) setActiveSectionIndex(next);
+                                    const next = scriptSections.findIndex(
+                                      (_, i) =>
+                                        i > idx &&
+                                        !completedSections.includes(i),
+                                    );
+                                    if (next !== -1)
+                                      setActiveSectionIndex(next);
                                   }
                                 }}
                                 className={`text-xs px-2 py-0.5 rounded border flex-shrink-0 ml-2 transition ${
                                   completedSections.includes(idx)
                                     ? "border-gray-300 text-gray-500 hover:bg-gray-100"
                                     : "border-green-300 text-green-700 hover:bg-green-50"
-                                }`}>
-                                {completedSections.includes(idx) ? "Undo" : "Done"}
+                                }`}
+                              >
+                                {completedSections.includes(idx)
+                                  ? "Undo"
+                                  : "Done"}
                               </button>
                             </div>
 
                             {/* Section body */}
                             {!completedSections.includes(idx) && (
-                              <div className="px-4 py-3 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
+                              <div className="px-4 py-3 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap max-w-prose xl:max-w-3xl">
                                 {sec.content}
                               </div>
                             )}
 
                             {/* Pause bar */}
-                            {(sec.content.includes("[PAUSE]") || /Pause\.\s*Let them answer/i.test(sec.content)) &&
+                            {(sec.content.includes("[PAUSE]") ||
+                              /Pause\.\s*Let them answer/i.test(sec.content) ||
+                              /Let them agree/i.test(sec.content)) &&
+                              pauseAwaitingSectionIndex === idx &&
                               !completedSections.includes(idx) && (
-                              <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 flex items-center justify-between">
-                                <span className="text-xs text-amber-700 font-medium flex items-center gap-1.5">
-                                  <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
-                                  Pause — let client respond
-                                </span>
-                                <button
-                                  onClick={() => {
-                                    setCompletedSections((prev) => [...prev, idx]);
-                                    const next = scriptSections.findIndex((_, i) => i > idx && !completedSections.includes(i));
-                                    if (next !== -1) {
-                                      setActiveSectionIndex(next);
-                                      isPlayingRef.current = true;
-                                      setPlayingScriptId(selectedScript._id);
-                                      currentSectionRef.current = next;
-                                      playSectionAudio(next);
-                                    }
-                                  }}
-                                  className="text-xs px-3 py-1 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium">
-                                  Continue ▶
-                                </button>
-                              </div>
-                            )}
+                                <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 flex items-center justify-between gap-3">
+                                  <span className="text-xs text-amber-700 font-medium flex items-center gap-1.5">
+                                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+                                    TTS Generation is paused
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      setPauseAwaitingSectionIndex(null);
+                                      setCompletedSections((prev) => [
+                                        ...prev,
+                                        idx,
+                                      ]);
+                                      const next = scriptSections.findIndex(
+                                        (_, i) =>
+                                          i > idx &&
+                                          !completedSections.includes(i),
+                                      );
+                                      if (next !== -1) {
+                                        setActiveSectionIndex(next);
+                                        isPlayingRef.current = true;
+                                        setPlayingScriptId(selectedScript._id);
+                                        currentSectionRef.current = next;
+                                        playSectionAudio(next);
+                                      }
+                                    }}
+                                    className="text-xs px-3 py-1 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium flex-shrink-0"
+                                  >
+                                    Continue
+                                  </button>
+                                </div>
+                              )}
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-w-prose xl:max-w-3xl">
                           {replaceScriptPlaceholders(selectedScript.content)}
                         </p>
                       )}
 
                       {selectedScript.audioStatus === "generating" && (
-                        <div className="p-4 bg-blue-50 rounded-lg text-sm text-blue-700">Audio is being generated...</div>
+                        <div className="p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
+                          Audio is being generated...
+                        </div>
                       )}
                       {selectedScript.audioStatus === "failed" && (
                         <div className="p-4 bg-red-50 rounded-lg text-sm text-red-700">
@@ -1211,16 +1570,23 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                     {/* Progress bar */}
                     {scriptSections.length > 1 && (
                       <div className="px-4 sm:px-5 py-2.5 border-t border-gray-200 bg-gray-50 flex items-center gap-3 flex-shrink-0">
-                        <div className="flex gap-1.5 items-center">
+                        <div className="flex gap-1.5 items-center overflow-x-auto">
                           {scriptSections.map((_, idx) => (
-                            <div key={idx} className={`h-1.5 rounded-full transition-all ${
-                              completedSections.includes(idx) ? "w-4 bg-green-400" :
-                              activeSectionIndex === idx ? "w-4 bg-indigo-500" : "w-1.5 bg-gray-300"
-                            }`} />
+                            <div
+                              key={idx}
+                              className={`h-1.5 rounded-full transition-all flex-shrink-0 ${
+                                completedSections.includes(idx)
+                                  ? "w-4 bg-green-400"
+                                  : activeSectionIndex === idx
+                                    ? "w-4 bg-indigo-500"
+                                    : "w-1.5 bg-gray-300"
+                              }`}
+                            />
                           ))}
                         </div>
-                        <span className="text-xs text-gray-400 ml-auto">
-                          {completedSections.length} of {scriptSections.length} sections done
+                        <span className="text-xs text-gray-400 ml-auto whitespace-nowrap">
+                          {completedSections.length} of {scriptSections.length}{" "}
+                          sections done
                         </span>
                       </div>
                     )}
@@ -1239,10 +1605,13 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         </div>
       )}
 
-      {/* ── Tabs + search ── */}
+      {/* Tabs */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6" aria-label="Tabs">
+          <nav
+            className="flex overflow-x-auto px-4 sm:px-6 scrollbar-hide"
+            aria-label="Tabs"
+          >
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1253,40 +1622,63 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                 red: "border-red-500 text-red-600",
               };
               return (
-                <button key={tab.id}
-                  onClick={() => { setActiveTab(tab.id); setCurrentPage(1); setSearchQuery(""); if (tab.id === "transferred") fetchAvailableAgents(); }}
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setCurrentPage(1);
+                    setSearchQuery("");
+                    if (tab.id === "transferred") fetchAvailableAgents();
+                  }}
                   className={`group inline-flex items-center px-1 py-4 border-b-2 font-medium text-sm ${
-                    isActive ? colorClasses[tab.color] : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    isActive
+                      ? colorClasses[tab.color]
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   }`}
-                  title={tab.description}>
-                  <Icon className="mr-2 h-5 w-5 text-current" />
-                  <span>{tab.label}</span>
+                  title={tab.description}
+                >
+                  <Icon className="h-5 w-5 text-current sm:mr-2" />
+                  <span className="hidden sm:inline">{tab.label}</span>
                 </button>
               );
             })}
           </nav>
         </div>
 
-        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="relative max-w-md">
+        <div className="px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {/* Search */}
+            <div className="relative flex-1 sm:max-w-md">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <FiSearch className="h-4 w-4 text-gray-400" />
               </div>
-              <input type="text" placeholder="Search leads..." value={searchQuery}
+              <input
+                type="text"
+                placeholder="Search leads..."
+                value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" />
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              />
             </div>
-            <div className="flex items-center space-x-3">
-              {/* Map SIP button — only for opener */}
+
+            {/* Filters row */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               {showTransferButton && (
-                <button onClick={handleMapMySipDevice}
-                  className="px-3 py-2 text-sm border border-indigo-300 text-indigo-600 rounded-md hover:bg-indigo-50">
+                <button
+                  onClick={handleMapMySipDevice}
+                  className="px-3 py-2 text-xs sm:text-sm border border-indigo-300 text-indigo-600 rounded-md hover:bg-indigo-50 whitespace-nowrap"
+                >
                   Map My SIP
                 </button>
               )}
-              <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-md text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-[110px]"
+              >
                 <option value="all">All Status</option>
                 <option value="New">New</option>
                 <option value="Contacted">Contacted</option>
@@ -1294,8 +1686,13 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                 <option value="Completed">Completed</option>
                 <option value="Closed">Closed</option>
               </select>
-              <button onClick={fetchLeads} className="p-2 text-gray-400 hover:text-gray-500">
-                <FiRefreshCw className={`h-5 w-5 ${isLoading ? "animate-spin" : ""}`} />
+              <button
+                onClick={fetchLeads}
+                className="p-2 text-gray-400 hover:text-gray-500 flex-shrink-0"
+              >
+                <FiRefreshCw
+                  className={`h-5 w-5 ${isLoading ? "animate-spin" : ""}`}
+                />
               </button>
             </div>
           </div>
@@ -1303,109 +1700,304 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
         {!isLoading && totalItems > 0 && (
           <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-            <PaginationControls />
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={handleItemsPerPageChange}
+              onFirst={goToFirstPage}
+              onPrev={goToPreviousPage}
+              onNext={goToNextPage}
+              onLast={goToLastPage}
+            />
           </div>
         )}
       </div>
 
-      {/* ── Leads table ── */}
-      <div className="bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
+      {/* Lead cards (mobile) */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+          </div>
+        ) : filteredLeads.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
+            {searchQuery ? "No leads match your search" : "No leads found"}
+          </div>
+        ) : (
+          filteredLeads.map((lead) => (
+            <div
+              key={lead.id}
+              onClick={() => openLeadScriptModal(lead)}
+              className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-indigo-300 transition"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center bg-gradient-to-br ${
+                      lead.rating === "Flagged"
+                        ? "from-purple-500 to-purple-600"
+                        : lead.status === "Incompleted" && !lead.assigned_to
+                          ? "from-red-500 to-red-600"
+                          : lead.transferred_to
+                            ? "from-blue-500 to-blue-600"
+                            : "from-indigo-500 to-purple-600"
+                    }`}
+                  >
+                    <span className="text-white font-medium text-sm">
+                      {lead.name?.charAt(0).toUpperCase() || "?"}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {lead.name || "No Name"}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {lead.book_title || "No title"}
+                    </p>
+                    {lead.phone && (
+                      <p className="text-xs text-gray-400">{lead.phone}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                  <span
+                    className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(lead.status)}`}
+                  >
+                    {lead.status || "New"}
+                  </span>
+                  {getRatingDisplay(lead)}
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                {lead.comment ? (
+                  <p className="text-xs text-gray-500 line-clamp-1 flex-1 mr-3">
+                    {lead.comment}
+                  </p>
+                ) : (
+                  <span className="text-xs text-gray-400">No notes</span>
+                )}
+                <div className="flex gap-2">
+                  {activeTab === "my-leads" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedLead(lead);
+                        setShowRatingModal(true);
+                      }}
+                      className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-full"
+                    >
+                      <FiStar className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLead(lead);
+                      setShowCommentModal(true);
+                    }}
+                    className="p-1.5 text-gray-500 hover:bg-gray-50 rounded-full"
+                  >
+                    <FiMessageSquare className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Leads table */}
+      <div className="hidden md:block bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {["Contact Info", "Book Details", "Status", "Rating",
+                {[
+                  "Contact Info",
+                  "Book Details",
+                  "Status",
+                  "Rating",
                   ...(activeTab === "transferred" ? ["Transferred By"] : []),
-                  "Comments/Notes", "Actions"
+                  "Comments/Notes",
+                  "Actions",
                 ].map((h) => (
-                  <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
+                  <th
+                    key={h}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
-                <tr><td colSpan={activeTab === "transferred" ? 7 : 6} className="px-6 py-8 text-center">
-                  <div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" /></div>
-                </td></tr>
-              ) : filteredLeads.length === 0 ? (
-                <tr><td colSpan={activeTab === "transferred" ? 7 : 6} className="px-6 py-4 text-center text-gray-500">
-                  {searchQuery ? "No leads match your search" : (
-                    <div className="flex flex-col items-center py-8">
-                      {activeTab === "my-leads" && <><FiUser className="h-12 w-12 text-gray-300 mb-3" /><p className="font-medium">No active leads</p><p className="text-sm text-gray-400">Leads assigned to you will appear here</p></>}
-                      {activeTab === "flagged" && <><FiFlag className="h-12 w-12 text-gray-300 mb-3" /><p className="font-medium">No flagged leads yet</p></>}
-                      {activeTab === "transferred" && <><FiSend className="h-12 w-12 text-gray-300 mb-3" /><p className="font-medium">No transferred leads</p></>}
-                      {activeTab === "declined" && <><FiThumbsDown className="h-12 w-12 text-gray-300 mb-3" /><p className="font-medium">No declined leads</p></>}
+                <tr>
+                  <td
+                    colSpan={activeTab === "transferred" ? 7 : 6}
+                    className="px-6 py-8 text-center"
+                  >
+                    <div className="flex justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
                     </div>
-                  )}
-                </td></tr>
+                  </td>
+                </tr>
+              ) : filteredLeads.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={activeTab === "transferred" ? 7 : 6}
+                    className="px-6 py-4 text-center text-gray-500"
+                  >
+                    {searchQuery ? (
+                      "No leads match your search"
+                    ) : (
+                      <div className="flex flex-col items-center py-8">
+                        {activeTab === "my-leads" && (
+                          <>
+                            <FiUser className="h-12 w-12 text-gray-300 mb-3" />
+                            <p className="font-medium">No active leads</p>
+                            <p className="text-sm text-gray-400">
+                              Leads assigned to you will appear here
+                            </p>
+                          </>
+                        )}
+                        {activeTab === "flagged" && (
+                          <>
+                            <FiFlag className="h-12 w-12 text-gray-300 mb-3" />
+                            <p className="font-medium">No flagged leads yet</p>
+                          </>
+                        )}
+                        {activeTab === "transferred" && (
+                          <>
+                            <FiSend className="h-12 w-12 text-gray-300 mb-3" />
+                            <p className="font-medium">No transferred leads</p>
+                          </>
+                        )}
+                        {activeTab === "declined" && (
+                          <>
+                            <FiThumbsDown className="h-12 w-12 text-gray-300 mb-3" />
+                            <p className="font-medium">No declined leads</p>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
               ) : (
                 filteredLeads.map((lead) => (
-                  <tr key={lead.id} onClick={() => openLeadScriptModal(lead)} className="hover:bg-gray-50 cursor-pointer">
-
-                    {/* Contact Info */}
+                  <tr
+                    key={lead.id}
+                    onClick={() => openLeadScriptModal(lead)}
+                    className="hover:bg-gray-50 cursor-pointer"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center bg-gradient-to-br ${
-                          lead.rating === "Flagged" ? "from-purple-500 to-purple-600" :
-                          lead.status === "Incompleted" && !lead.assigned_to ? "from-red-500 to-red-600" :
-                          lead.transferred_to ? "from-blue-500 to-blue-600" : "from-indigo-500 to-purple-600"
-                        }`}>
-                          <span className="text-white font-medium text-sm">{lead.name?.charAt(0).toUpperCase() || "?"}</span>
+                        <div
+                          className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center bg-gradient-to-br ${
+                            lead.rating === "Flagged"
+                              ? "from-purple-500 to-purple-600"
+                              : lead.status === "Incompleted" &&
+                                  !lead.assigned_to
+                                ? "from-red-500 to-red-600"
+                                : lead.transferred_to
+                                  ? "from-blue-500 to-blue-600"
+                                  : "from-indigo-500 to-purple-600"
+                          }`}
+                        >
+                          <span className="text-white font-medium text-sm">
+                            {lead.name?.charAt(0).toUpperCase() || "?"}
+                          </span>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{lead.name || "No Name"}</div>
-                          <div className="text-sm text-gray-500 flex items-center"><FiMail className="mr-1 h-3 w-3" />{lead.email || "No email"}</div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {lead.name || "No Name"}
+                          </div>
+                          <div className="text-sm text-gray-500 flex items-center">
+                            <FiMail className="mr-1 h-3 w-3" />
+                            {lead.email || "No email"}
+                          </div>
                           {lead.phone && (
-                            <button onClick={(e) => { e.stopPropagation(); openLeadScriptModal(lead); }}
-                              className="text-sm text-gray-500 flex items-center hover:text-indigo-600 transition">
-                              <FiPhone className="mr-1 h-3 w-3" />{lead.phone}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openLeadScriptModal(lead);
+                              }}
+                              className="text-sm text-gray-500 flex items-center hover:text-indigo-600 transition"
+                            >
+                              <FiPhone className="mr-1 h-3 w-3" />
+                              {lead.phone}
                             </button>
                           )}
                         </div>
                       </div>
                     </td>
 
-                    {/* Book Details */}
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900 flex items-center"><FiBook className="mr-1 h-3 w-3 text-gray-400" />{lead.book_title || "No title"}</div>
-                      {lead.author && <div className="text-sm text-gray-500">by {lead.author}</div>}
-                      {lead.publisher && <div className="text-xs text-gray-400">{lead.publisher}</div>}
+                      <div className="text-sm text-gray-900 flex items-center">
+                        <FiBook className="mr-1 h-3 w-3 text-gray-400" />
+                        {lead.book_title || "No title"}
+                      </div>
+                      {lead.author && (
+                        <div className="text-sm text-gray-500">
+                          by {lead.author}
+                        </div>
+                      )}
+                      {lead.publisher && (
+                        <div className="text-xs text-gray-400">
+                          {lead.publisher}
+                        </div>
+                      )}
                     </td>
 
-                    {/* Status */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(lead.status)}`}>
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(lead.status)}`}
+                      >
                         {lead.status || "New"}
                       </span>
                     </td>
 
-                    {/* Rating */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getRatingDisplay(lead)}
                       {lead.transferred_to && activeTab !== "transferred" && (
-                        <span className="ml-2 text-xs text-gray-500">→ {getTransferredToName(lead.transferred_to)}</span>
+                        <span className="ml-2 text-xs text-gray-500">
+                          → {getTransferredToName(lead.transferred_to)}
+                        </span>
                       )}
                     </td>
 
-                    {/* Transferred By */}
                     {activeTab === "transferred" && (
                       <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-400">
-                        {lead.transferred_at ? new Date(lead.transferred_at).toLocaleDateString() : "N/A"}
+                        {lead.transferred_at
+                          ? new Date(lead.transferred_at).toLocaleDateString()
+                          : "N/A"}
                       </td>
                     )}
 
-                    {/* Comments */}
                     <td className="px-6 py-4">
                       <div className="max-w-xs">
                         {lead.comment ? (
                           <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded-lg">
                             <p className="line-clamp-2">{lead.comment}</p>
-                            <p className="text-xs text-gray-400 mt-1">{lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : ""}</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {lead.updated_at
+                                ? new Date(lead.updated_at).toLocaleDateString()
+                                : ""}
+                            </p>
                           </div>
                         ) : (
-                          <button onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); setShowCommentModal(true); }}
-                            className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center">
-                            <FiMessageSquare className="mr-1 h-3 w-3" /> Add note
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLead(lead);
+                              setShowCommentModal(true);
+                            }}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center"
+                          >
+                            <FiMessageSquare className="mr-1 h-3 w-3" /> Add
+                            note
                           </button>
                         )}
                       </div>
@@ -1414,24 +2006,52 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                     {/* Actions */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
-                        <button onClick={(e) => { e.stopPropagation(); openLeadScriptModal(lead); }}
-                          className="text-green-600 hover:text-green-900 p-1 rounded-full hover:bg-green-50" title="Open script">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openLeadScriptModal(lead);
+                          }}
+                          className="text-green-600 hover:text-green-900 p-1 rounded-full hover:bg-green-50"
+                          title="Open script"
+                        >
                           <FiPhone className="h-4 w-4" />
                         </button>
                         {activeTab === "my-leads" && (
-                          <button onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); setShowRatingModal(true); }}
-                            className="text-indigo-600 hover:text-indigo-900 p-1 rounded-full hover:bg-indigo-50" title="Flag or Decline">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLead(lead);
+                              setShowRatingModal(true);
+                            }}
+                            className="text-indigo-600 hover:text-indigo-900 p-1 rounded-full hover:bg-indigo-50"
+                            title="Flag or Decline"
+                          >
                             <FiStar className="h-4 w-4" />
                           </button>
                         )}
                         {activeTab === "my-leads" && showTransferButton && (
-                          <button onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); fetchAvailableAgents(); setShowTransferModal(true); }}
-                            className="text-cyan-600 hover:text-cyan-900 p-1 rounded-full hover:bg-cyan-50" title="Transfer">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLead(lead);
+                              fetchAvailableAgents();
+                              setShowTransferModal(true);
+                            }}
+                            className="text-cyan-600 hover:text-cyan-900 p-1 rounded-full hover:bg-cyan-50"
+                            title="Transfer"
+                          >
                             <FiSend className="h-4 w-4" />
                           </button>
                         )}
-                        <button onClick={(e) => { e.stopPropagation(); setSelectedLead(lead); setShowCommentModal(true); }}
-                          className="text-gray-600 hover:text-gray-900 p-1 rounded-full hover:bg-gray-50" title="Add comment">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLead(lead);
+                            setShowCommentModal(true);
+                          }}
+                          className="text-gray-600 hover:text-gray-900 p-1 rounded-full hover:bg-gray-50"
+                          title="Add comment"
+                        >
                           <FiMessageSquare className="h-4 w-4" />
                         </button>
                       </div>
@@ -1444,32 +2064,61 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         </div>
 
         {!isLoading && totalItems > 0 && (
-          <div className="px-6 py-4 bg-white border-t border-gray-200"><PaginationControls /></div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={handleItemsPerPageChange}
+              onFirst={goToFirstPage}
+              onPrev={goToPreviousPage}
+              onNext={goToNextPage}
+              onLast={goToLastPage}
+            />
+          </div>
         )}
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: "My Leads", value: leads.filter((l) => l.assigned_to && (!l.rating || l.rating !== "Flagged") && !l.transferred_to).length, color: "indigo", icon: FiUser },
-          { label: "Flagged", value: leads.filter((l) => l.rating === "Flagged").length, color: "purple", icon: FiFlag, sub: "Still assigned to you" },
-          { label: "Transferred", value: leads.filter((l) => l.transferred_to).length, color: "blue", icon: FiSend, sub: "Sent to other agents" },
-          { label: "Declined", value: leads.filter((l) => l.status === "Incompleted" && !l.assigned_to).length, color: "red", icon: FiThumbsDown, sub: "Removed from your list" },
-        ].map(({ label, value, color, icon: Icon, sub }) => (
-          <div key={label} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">{label}</p>
-                <p className={`text-2xl font-semibold text-${color}-600`}>{value}</p>
-                {sub && <p className="text-xs text-gray-400">{sub}</p>}
-              </div>
-              <div className={`p-3 bg-${color}-100 rounded-lg`}>
-                <Icon className={`h-6 w-6 text-${color}-600`} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        {summaryCards.map(
+          ({
+            label,
+            value,
+            textColor,
+            bgColor,
+            iconColor,
+            icon: Icon,
+            sub,
+          }) => (
+            <div
+              key={label}
+              className="bg-white rounded-xl shadow-sm border border-gray-200 p-4"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-500">{label}</p>
+                  <p
+                    className={`text-xl sm:text-2xl font-semibold ${textColor}`}
+                  >
+                    {value}
+                  </p>
+                  {sub && (
+                    <p className="text-xs text-gray-400 hidden sm:block">
+                      {sub}
+                    </p>
+                  )}
+                </div>
+                <div className={`p-2 sm:p-3 ${bgColor} rounded-lg`}>
+                  <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${iconColor}`} />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ),
+        )}
       </div>
     </div>
   );
 }
+  

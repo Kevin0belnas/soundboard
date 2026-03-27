@@ -109,11 +109,6 @@ export default function ScriptList({
         canDelete: userRole === "admin" || script.author?._id === userId
       }));
 
-      // if (userRole === "closer") {
-      //   scriptsArray = scriptsArray.filter(
-      //     (script) => script.normalizedType === "admin" || script.normalizedType === "closer"
-      //   );
-      // } else 
         if (userRole === "opener") {
         scriptsArray = scriptsArray.filter(
           (script) => script.normalizedType === "admin" || script.normalizedType === "opener"
