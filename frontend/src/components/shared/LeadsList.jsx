@@ -1197,7 +1197,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
           <div className="relative h-full w-full p-3 sm:p-6 flex items-center justify-center">
             <div className="bg-white w-full max-w-6xl rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] flex flex-col">
               {/* Script modal header */}
-              <div className="flex items-start justify-between gap-4 p-4 sm:p-5 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+              <div className="flex items-start justify-between gap-4 p-4 sm:p-5 border-b border-gray-200 bg-gray-50 shrink-0">
                 <div className="min-w-0">
                   <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
                     Scripts for {selectedLead.name}
@@ -1216,7 +1216,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
               <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
                 {/* Script list (Desktop) */}
-                <div className="hidden lg:flex lg:w-[240px] xl:w-[260px] border-r border-gray-200 flex-col flex-shrink-0 bg-gray-50">
+                <div className="hidden lg:flex lg:w-[240px] xl:w-[260px] border-r border-gray-200 flex-col shrink-0 bg-gray-50">
                   <div className="px-4 py-3 border-b border-gray-200">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Templates
@@ -1244,7 +1244,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                         >
                           <div className="flex items-center gap-2">
                             {playingScriptId === script._id && (
-                              <FiVolume2 className="h-3.5 w-3.5 text-green-600 animate-pulse flex-shrink-0" />
+                              <FiVolume2 className="h-3.5 w-3.5 text-green-600 animate-pulse shrink-0" />
                             )}
                             <div className="min-w-0">
                               <p
@@ -1268,7 +1268,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                 </div>
 
                 {/* Script selector (mobile dropdown) */}
-                <div className="lg:hidden border-b border-gray-200 p-3 flex-shrink-0">
+                <div className="lg:hidden border-b border-gray-200 p-3 shrink-0">
                   <select
                     value={selectedScript?._id || ""}
                     onChange={(e) => {
@@ -1291,7 +1291,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                 {/* Script content */}
                 {selectedScript ? (
                   <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
-                    <div className="px-4 sm:px-5 py-3 border-b border-gray-200 flex-shrink-0">
+                    <div className="px-4 sm:px-5 py-3 border-b border-gray-200 shrink-0">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="min-w-0">
                           <h4 className="text-sm font-semibold text-gray-900 truncate">
@@ -1305,7 +1305,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                         </div>
 
                         {/* Action buttons */}
-                        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 flex-shrink-0">
+                        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 shrink-0">
                           {showTransferButton && (
                             <button
                               onClick={handleStartCall}
@@ -1371,7 +1371,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
                     {/* Section nav pills */}
                     {scriptSections.length > 1 && (
-                      <div className="px-4 sm:px-5 py-2.5 border-b border-gray-200 flex gap-2 overflow-x-auto flex-shrink-0 bg-gray-50">
+                      <div className="px-4 sm:px-5 py-2.5 border-b border-gray-200 flex gap-2 overflow-x-auto shrink-0 bg-gray-50">
                         {scriptSections.map((sec, idx) => (
                           <button
                             key={idx}
@@ -1385,7 +1385,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                                   block: "nearest",
                                 });
                             }}
-                            className={`px-3 py-1 rounded-full text-xs font-medium border transition whitespace-nowrap flex-shrink-0 ${
+                            className={`px-3 py-1 rounded-full text-xs font-medium border transition whitespace-nowrap shrink-0 ${
                               completedSections.includes(idx)
                                 ? "bg-gray-100 text-gray-400 border-gray-200 line-through"
                                 : activeSectionIndex === idx
@@ -1433,7 +1433,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                               <div className="flex items-center gap-2 min-w-0">
                                 {completedSections.includes(idx) ? (
                                   <svg
-                                    className="h-3.5 w-3.5 text-gray-400 flex-shrink-0"
+                                    className="h-3.5 w-3.5 text-gray-400 shrink-0"
                                     viewBox="0 0 14 14"
                                     fill="none"
                                     stroke="currentColor"
@@ -1443,10 +1443,10 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                                   </svg>
                                 ) : activeSectionIndex === idx &&
                                   playingScriptId === selectedScript._id ? (
-                                  <FiVolume2 className="h-3.5 w-3.5 text-indigo-500 animate-pulse flex-shrink-0" />
+                                  <FiVolume2 className="h-3.5 w-3.5 text-indigo-500 animate-pulse shrink-0" />
                                 ) : (
                                   <div
-                                    className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                                    className={`h-2 w-2 rounded-full shrink-0 ${
                                       activeSectionIndex === idx
                                         ? "bg-indigo-500"
                                         : "bg-gray-300"
@@ -1466,7 +1466,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                                 </span>
                                 {activeSectionIndex === idx &&
                                   !completedSections.includes(idx) && (
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium flex-shrink-0">
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium shrink-0">
                                       {playingScriptId === selectedScript._id
                                         ? "playing"
                                         : "active"}
@@ -1491,7 +1491,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                                       setActiveSectionIndex(next);
                                   }
                                 }}
-                                className={`text-xs px-2 py-0.5 rounded border flex-shrink-0 ml-2 transition ${
+                                className={`text-xs px-2 py-0.5 rounded border shrink-0 ml-2 transition ${
                                   completedSections.includes(idx)
                                     ? "border-gray-300 text-gray-500 hover:bg-gray-100"
                                     : "border-green-300 text-green-700 hover:bg-green-50"
@@ -1518,7 +1518,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                               !completedSections.includes(idx) && (
                                 <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 flex items-center justify-between gap-3">
                                   <span className="text-xs text-amber-700 font-medium flex items-center gap-1.5">
-                                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+                                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400 shrink-0" />
                                     TTS Generation is paused
                                   </span>
                                   <button
@@ -1541,7 +1541,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                                         playSectionAudio(next);
                                       }
                                     }}
-                                    className="text-xs px-3 py-1 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium flex-shrink-0"
+                                    className="text-xs px-3 py-1 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium shrink-0"
                                   >
                                     Continue
                                   </button>
@@ -1569,12 +1569,12 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
                     {/* Progress bar */}
                     {scriptSections.length > 1 && (
-                      <div className="px-4 sm:px-5 py-2.5 border-t border-gray-200 bg-gray-50 flex items-center gap-3 flex-shrink-0">
+                      <div className="px-4 sm:px-5 py-2.5 border-t border-gray-200 bg-gray-50 flex items-center gap-3 shrink-0">
                         <div className="flex gap-1.5 items-center overflow-x-auto">
                           {scriptSections.map((_, idx) => (
                             <div
                               key={idx}
-                              className={`h-1.5 rounded-full transition-all flex-shrink-0 ${
+                              className={`h-1.5 rounded-full transition-all shrink-0 ${
                                 completedSections.includes(idx)
                                   ? "w-4 bg-green-400"
                                   : activeSectionIndex === idx
@@ -1688,7 +1688,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
               </select>
               <button
                 onClick={fetchLeads}
-                className="p-2 text-gray-400 hover:text-gray-500 flex-shrink-0"
+                className="p-2 text-gray-400 hover:text-gray-500 shrink-0"
               >
                 <FiRefreshCw
                   className={`h-5 w-5 ${isLoading ? "animate-spin" : ""}`}
@@ -1735,7 +1735,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center bg-gradient-to-br ${
+                    className={`shrink-0 h-10 w-10 rounded-full flex items-center justify-center bg-gradient-to-br ${
                       lead.rating === "Flagged"
                         ? "from-purple-500 to-purple-600"
                         : lead.status === "Incompleted" && !lead.assigned_to
@@ -1761,7 +1761,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                     )}
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
                   <span
                     className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(lead.status)}`}
                   >
@@ -1895,7 +1895,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div
-                          className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center bg-gradient-to-br ${
+                          className={`shrink-0 h-10 w-10 rounded-full flex items-center justify-center bg-gradient-to-br ${
                             lead.rating === "Flagged"
                               ? "from-purple-500 to-purple-600"
                               : lead.status === "Incompleted" &&
