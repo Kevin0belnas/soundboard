@@ -70,11 +70,9 @@ function stripStageDirections(text) {
     .join("\n")
     .trim();
 }
+const { AUDIO_DIR, saveScriptAudioFile, generateTempAudio } = require("../services/ttsService");
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
-const AUDIO_DIR = path.join(__dirname, "..", "uploads", "audio");
-
-const SILENCE_PATH = path.join(AUDIO_DIR, "..", "silence_100ms.mp3");
 
 // ---------------- AUTH MIDDLEWARE ----------------
 const authenticateToken = (req, res, next) => {
@@ -95,173 +93,15 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ---------------- HELPERS ----------------
-function ensureAudioDir() {
-  if (!fs.existsSync(AUDIO_DIR)) {
-    fs.mkdirSync(AUDIO_DIR, { recursive: true });
-  }
-} 
-
-async function generateAndSaveScriptAudio(
-  scriptDoc,
-  oldAudioFileName = "",
-  forceRegenerate = false,
-) {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID;
-
-  if (!apiKey) {
-    throw new Error("Missing ELEVENLABS_API_KEY in backend .env");
-  }
-
-  if (!voiceId) {
-    throw new Error("Missing ELEVENLABS_VOICE_ID in backend .env");
-  }
-
-  ensureAudioDir();
-
-  const segments = parseScript(scriptDoc.content);
-
-  // Generate static segments which will be saved as numbered files
-  const staticDir = path.join(AUDIO_DIR, "static");
-  if (!fs.existsSync(staticDir)) fs.mkdirSync(staticDir, { recursive: true });
-
-  const savedSegments = [];
-
-  for (const seg of segments) {
-    if (seg.type === "static") {
-      const fileName = `${scriptDoc._id}_seg${seg.index}.mp3`;
-      const filePath = path.join(staticDir, fileName);
-
-      // Only regenerate if file doesn't exist, or force regeneration on content change
-      if (!fs.existsSync(filePath) || forceRegenerate) {
-        await generateSegment(seg.text, filePath);
-      }
-
-      savedSegments.push({ ...seg, fileName });
-    } else {
-      // Dynamic segments
-      savedSegments.push({ ...seg, fileName: "" });
-    }
-  }
-
-  // Delete old audio file if any
-  if (oldAudioFileName) {
-    const oldPath = path.join(AUDIO_DIR, oldAudioFileName);
-    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-  }
-
-  // Clean up old static segments for this script
-  const existingStatics = fs
-    .readdirSync(staticDir)
-    .filter((f) => f.startsWith(`${scriptDoc._id}_seg`));
-  const newStaticNames = savedSegments
-    .filter((s) => s.type === "static")
-    .map((s) => s.fileName);
-
-  for (const old of existingStatics) {
-    if (!newStaticNames.includes(old)) {
-      fs.unlinkSync(path.join(staticDir, old));
-    }
-  }
-
-  // Save segments into the script document
-  scriptDoc.segments = savedSegments;
-
-  // Generate static section audio files
-  const sectionDir = path.join(AUDIO_DIR, "sections");
-  if (!fs.existsSync(sectionDir)) fs.mkdirSync(sectionDir, { recursive: true });
-
-  const sections = parseScriptSectionsBackend(scriptDoc.content);
-  const sectionAudios = [];
-
-  for (let i = 0; i < sections.length; i++) {
-    const sec = sections[i];
-    // Skip sections with dynamic placeholders
-    if (DYNAMIC_PLACEHOLDER.test(sec.content)) continue;
-
-    const cleaned = stripStageDirections(sec.content);
-    if (!cleaned) continue;
-
-    const fileName = `${scriptDoc._id}_section${i}.mp3`;
-    const filePath = path.join(sectionDir, fileName);
-
-    if (!fs.existsSync(filePath) || forceRegenerate) {
-      await generateSegment(cleaned, filePath);
-    }
-    sectionAudios.push({ sectionIndex: i, fileName });
-  }
-
-  // Clean up old section files for this script
-  const existingSections = fs
-    .readdirSync(sectionDir)
-    .filter((f) => f.startsWith(`${scriptDoc._id}_section`));
-  const newSectionNames = sectionAudios.map((s) => s.fileName);
-  for (const old of existingSections) {
-    if (!newSectionNames.includes(old))
-      fs.unlinkSync(path.join(sectionDir, old));
-  }
-
-  scriptDoc.sectionAudios = sectionAudios;
-  scriptDoc.audioStatus = "ready";
-  scriptDoc.audioError = "";
-  scriptDoc.audioUrl = "";
-  scriptDoc.audioFileName = "";
-  await scriptDoc.save();
-
-  return scriptDoc;
-
-  // const response = await fetch(
-  //   `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-  //   {
-  //     method: "POST",
-  //     headers: {
-  //       "Content-Type": "application/json",
-  //       "xi-api-key": apiKey,
-  //       Accept: "audio/mpeg",
-  //     },
-  //     body: JSON.stringify({
-  //       text: scriptDoc.content.trim(),
-  //       model_id: "eleven_multilingual_v2",
-  //     }),
-  //   }
-  // );
-
-  // if (!response.ok) {
-  //   const rawError = await response.text();
-  //   throw new Error(rawError || "ElevenLabs request failed");
-  // }
-
-  // const audioBuffer = Buffer.from(await response.arrayBuffer());
-
-  // if (oldAudioFileName) {
-  //   const oldFilePath = path.join(AUDIO_DIR, oldAudioFileName);
-  //   if (fs.existsSync(oldFilePath)) {
-  //     fs.unlinkSync(oldFilePath);
-  //   }
-  // }
-
-  // const safeTitle = sanitizeFileName(scriptDoc.title || "script");
-  // const fileName = `${scriptDoc._id}_${safeTitle}.mp3`;
-  // const filePath = path.join(AUDIO_DIR, fileName);
-
-  // fs.writeFileSync(filePath, audioBuffer);
-
-  // scriptDoc.audioFileName = fileName;
-  // scriptDoc.audioUrl = `/audio/${fileName}`;
-  // scriptDoc.audioStatus = "ready";
-  // scriptDoc.audioError = "";
-  // await scriptDoc.save();
-
-  // return scriptDoc;
+async function generateAndSaveScriptAudio(scriptDoc, oldAudioFileName = "") {
+  return saveScriptAudioFile(scriptDoc, oldAudioFileName);
 }
 
-// ---------------- GET ALL SCRIPTS ----------------
-// Helper function to create logs
 const createLog = async (req, action, details) => {
   try {
     const log = new Log({
       action,
-      user: req.user.userId,
+      user: req.user?.userId,
       details,
       ip: req.ip || req.connection.remoteAddress,
     });
@@ -272,7 +112,7 @@ const createLog = async (req, action, details) => {
   }
 };
 
-// Get all scripts (protected)
+// ---------------- GET ALL SCRIPTS ----------------
 router.get("/", authenticateToken, async (req, res) => {
   try {
     let query = {};
@@ -316,12 +156,6 @@ router.post("/", authenticateToken, async (req, res) => {
     }
 
     let finalType = type || "general";
-
-    if (req.user.role === "closer") {
-      finalType = "closer";
-    } else if (req.user.role === "opener") {
-      finalType = "opener";
-    }
 
     if (req.user.role === "closer") {
       finalType = "closer";
@@ -400,12 +234,9 @@ router.put("/:id", authenticateToken, async (req, res) => {
         action: "update_script",
         message: "User attempted to update a script they did not create",
       });
-      return res
-        .status(403)
-        .json({ error: "Only the creator or admin can edit this script" });
+      return res.status(403).json({ error: "Only the creator or admin can edit this script" });
     }
 
-    // Store old values for logging
     const oldValues = {
       title: script.title,
       content: script.content,
@@ -423,21 +254,24 @@ router.put("/:id", authenticateToken, async (req, res) => {
       newContent !== script.content ||
       newType !== script.type;
 
-    // Update fields
     script.title = newTitle;
     script.content = newContent;
-    script.type = type || script.type;
+    script.type = newType;
     script.updatedAt = Date.now();
+
+    if (shouldRegenerate) {
+      script.audioStatus = "generating";
+      script.audioError = "";
+    }
 
     await script.save();
     await script.populate("author", "_id name email");
 
-    // CREATE LOG ENTRY
     await createLog(req, "update_script", {
       scriptId: script._id,
       title: script.title,
       oldValues,
-      newValues: { title, content, type },
+      newValues: { title: newTitle, content: newContent, type: newType },
       message: `Updated script: ${script.title}`,
     });
 
@@ -452,7 +286,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
     if (!shouldRegenerate) return;
 
     try {
-      await generateAndSaveScriptAudio(script, oldAudioFileName, true);
+      await generateAndSaveScriptAudio(script, oldAudioFileName);
       console.log(`Audio regenerated for script: ${script._id}`);
     } catch (audioError) {
       console.error("Audio regeneration failed:", audioError.message);
@@ -470,7 +304,6 @@ router.put("/:id", authenticateToken, async (req, res) => {
 router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
   try {
     const scriptId = req.params.id;
-
     const script = await Script.findById(scriptId);
 
     if (!script) {
@@ -481,9 +314,7 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
       script.author.toString() !== req.user.userId &&
       req.user.role !== "admin"
     ) {
-      return res
-        .status(403)
-        .json({ error: "Not authorized to regenerate this script audio" });
+      return res.status(403).json({ error: "Not authorized to regenerate this script audio" });
     }
 
     const oldAudioFileName = script.audioFileName || "";
@@ -503,7 +334,7 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
     });
 
     try {
-      await generateAndSaveScriptAudio(script, oldAudioFileName, true);
+      await generateAndSaveScriptAudio(script, oldAudioFileName);
       console.log(`Audio regenerated for script: ${script._id}`);
     } catch (audioError) {
       console.error("Audio regeneration failed:", audioError.message);
@@ -517,187 +348,36 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
     await createLog(req, "error", {
       error: error.message,
       scriptId: req.params.id,
-      action: "update_script",
+      action: "regenerate_audio",
     });
 
     res.status(500).json({ error: error.message });
   }
 });
 
-// ---------------- SERVE STATIC SECTION AUDIO ----------------
-router.get(
-  "/:id/section-audio/:sectionIndex",
-  authenticateToken,
-  async (req, res) => {
-    const script = await Script.findById(req.params.id);
-    if (!script) return res.status(404).json({ error: "Script not found" });
-
-    const idx = parseInt(req.params.sectionIndex);
-    const entry = script.sectionAudios?.find((s) => s.sectionIndex === idx);
-    if (!entry)
-      return res
-        .status(404)
-        .json({ error: "No cached audio for this section" });
-
-    const filePath = path.join(AUDIO_DIR, "sections", entry.fileName);
-    if (!fs.existsSync(filePath))
-      return res
-        .status(404)
-        .json({ error: "Audio file missing, please regenerate" });
-
-    res.setHeader("Content-Type", "audio/mpeg");
-    fs.createReadStream(filePath).pipe(res);
-  },
-);
 
 // ---------------- GENERATE TEMPORARY PERSONALIZED AUDIO ----------------
 router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
-  console.log("generate-audio-temp body:", JSON.stringify(req.body, null, 2));
-
   try {
-    const { scriptId, sectionText, values } = req.body;
+    const { text, scriptId } = req.body;
 
-    const apiKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.ELEVENLABS_VOICE_ID;
-
-    if (!apiKey)
-      return res.status(500).json({ error: "Missing ELEVENLABS_API_KEY" });
-    if (!voiceId)
-      return res.status(500).json({ error: "Missing ELEVENLABS_VOICE_ID" });
-
-    ensureAudioDir();
-    const tempDir = path.join(__dirname, "..", "uploads", "temp");
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-
-    // Approach 1: Section-by-section generation for dynamic scripts without regenerating the whole script
-    if (sectionText) {
-      const cleaned = stripStageDirections(sectionText.trim());
-
-      if (!cleaned) {
-        return res
-          .status(400)
-          .json({ error: "sectionText is empty after trimming" });
-      }
-
-      const response = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "xi-api-key": apiKey,
-            Accept: "audio/mpeg",
-          },
-          body: JSON.stringify({
-            text: cleaned,
-            model_id: "eleven_turbo_v2_5",
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const rawError = await response.text();
-        throw new Error(rawError || "ElevenLabs request failed");
-      }
-
-      const audioBuffer = Buffer.from(await response.arrayBuffer());
-      const timestamp = Date.now();
-      const fileName = `section_${scriptId || "x"}_${timestamp}.mp3`;
-      const filePath = path.join(tempDir, fileName);
-
-      fs.writeFileSync(filePath, audioBuffer);
-
-      // Clean up temp files older than 1 hour
-      fs.readdirSync(tempDir).forEach((file) => {
-        const fp = path.join(tempDir, file);
-        try {
-          if (Date.now() - fs.statSync(fp).mtimeMs > 3600000) fs.unlinkSync(fp);
-        } catch (_) {}
-      });
-
-      return res.json({
-        success: true,
-        audioUrl: `/temp/${fileName}`,
-        message: "Section audio generated successfully",
-      });
+    if (!text) {
+      return res.status(400).json({ error: "Text is required" });
     }
 
-    // Approach 2: Full stitch (existing, unchanged)
-    if (!scriptId)
-      return res.status(400).json({ error: "scriptId is required" });
-    if (!values)
-      return res.status(400).json({ error: "values map is required" });
+    const result = await generateTempAudio(text, scriptId || "audio");
 
-    const script = await Script.findById(scriptId);
-    if (!script) return res.status(404).json({ error: "Script not found" });
-    if (!script.segments || script.segments.length === 0) {
-      return res.status(400).json({
-        error: "Script has no pre-generated segments. Please regenerate audio.",
-      });
-    }
-
-    const staticDir = path.join(AUDIO_DIR, "static");
-    const orderedPaths = [];
-
-    for (const seg of script.segments) {
-      if (seg.type === "static") {
-        const filePath = path.join(staticDir, seg.fileName);
-        if (!fs.existsSync(filePath)) {
-          return res.status(500).json({
-            error: `Static segment file missing: ${seg.fileName}. Please regenerate audio for this script.`,
-          });
-        }
-        orderedPaths.push(filePath);
-      } else if (seg.type === "dynamic") {
-        const resolved = values[seg.text];
-        if (!resolved) {
-          return res.status(400).json({
-            error: `Missing value for dynamic placeholder: ${seg.text}`,
-          });
-        }
-
-        const { filePath, exists } = getCachedPath(resolved);
-        if (!exists) {
-          await generateSegment(resolved, filePath);
-        }
-        orderedPaths.push(filePath);
-      }
-      // pause segments are skipped
-
-      // Silence buffer between segments
-      if (fs.existsSync(SILENCE_PATH)) {
-        orderedPaths.push(SILENCE_PATH);
-      }
-    }
-
-    // Remove trailing silence
-    if (orderedPaths[orderedPaths.length - 1] === SILENCE_PATH) {
-      orderedPaths.pop();
-    }
-
-    // Stitch
-    const timestamp = Date.now();
-    const outputName = `stitched_${scriptId}_${timestamp}.mp3`;
-    const outputPath = path.join(tempDir, outputName);
-
-    stitchAudio(orderedPaths, outputPath);
-
-    // Clean up temp files older than 1 hour
-    fs.readdirSync(tempDir).forEach((file) => {
-      const fp = path.join(tempDir, file);
-      try {
-        if (Date.now() - fs.statSync(fp).mtimeMs > 3600000) fs.unlinkSync(fp);
-      } catch (_) {}
-    });
-
-    return res.json({
+    res.json({
       success: true,
-      audioUrl: `/temp/${outputName}`,
-      message: "Stitched audio generated successfully",
+      audioUrl: result.audioUrl,
+      message: "Personalized audio generated successfully",
     });
   } catch (error) {
-    console.error("Stitching error:", error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error("Error generating temporary audio:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to generate audio",
+    });
   }
 });
 
@@ -705,7 +385,6 @@ router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const scriptId = req.params.id;
-
     const script = await Script.findById(scriptId);
 
     if (!script) {
@@ -722,9 +401,65 @@ router.delete("/:id", authenticateToken, async (req, res) => {
         action: "delete_script",
         message: "User attempted to delete a script they did not create",
       });
-      return res
-        .status(403)
-        .json({ error: "Only the creator or admin can delete this script" });
+      return res.status(403).json({ error: "Only the creator or admin can delete this script" });
+    }
+
+    if (script.audioFileName) {
+      const filePath = path.join(AUDIO_DIR, script.audioFileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    const deletedScriptInfo = {
+      id: script._id,
+      title: script.title,
+      type: script.type,
+    };
+
+    await Script.findByIdAndDelete(scriptId);
+
+    await createLog(req, "delete_script", {
+      scriptId: deletedScriptInfo.id,
+      title: deletedScriptInfo.title,
+      type: deletedScriptInfo.type,
+      message: `Deleted script: ${deletedScriptInfo.title}`,
+    });
+
+    res.json({ message: "Script deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting script:", error);
+
+    await createLog(req, "error", {
+      error: error.message,
+      scriptId: req.params.id,
+      action: "delete_script",
+    });
+
+    res.status(500).json({ error: error.message });
+  }
+});
+// ---------------- DELETE SCRIPT ----------------
+router.delete("/:id", authenticateToken, async (req, res) => {
+  try {
+    const scriptId = req.params.id;
+    const script = await Script.findById(scriptId);
+
+    if (!script) {
+      return res.status(404).json({ error: "Script not found" });
+    }
+
+    const isAuthor = script.author.toString() === req.user.userId;
+    const isAdmin = req.user.role === "admin";
+
+    if (!isAuthor && !isAdmin) {
+      await createLog(req, "unauthorized", {
+        scriptId,
+        userId: req.user.userId,
+        action: "delete_script",
+        message: "User attempted to delete a script they did not create",
+      });
+      return res.status(403).json({ error: "Only the creator or admin can delete this script" });
     }
 
     if (script.audioFileName) {
