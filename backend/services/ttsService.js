@@ -163,6 +163,112 @@ async function generateAsteriskTTS(text, fileBaseName) {
   };
 }
 
+const AUDIO_DIR = path.join(__dirname, "..", "uploads", "audio");
+const TEMP_DIR = path.join(__dirname, "..", "uploads", "temp");
+
+async function generateTempAudio(text, fileBaseName) {
+  const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
+  const voiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
+
+  if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
+  if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
+  if (!text || !String(text).trim()) throw new Error("TTS text is required");
+
+  fs.mkdirSync(TEMP_DIR, { recursive: true });
+
+  const fileName = `${fileBaseName}_${Date.now()}.mp3`;
+  const filePath = path.join(TEMP_DIR, fileName);
+
+  let response;
+  try {
+    response = await axios({
+      method: "post",
+      url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      responseType: "arraybuffer",
+      timeout: 60000,
+      data: {
+        text: String(text),
+        model_id: "eleven_multilingual_v2",
+        voice_settings: { stability: 0.4, similarity_boost: 0.8 },
+      },
+    });
+  } catch (err) {
+    const status = err.response?.status;
+    let detail = "";
+    if (err.response?.data) {
+      try {
+        detail = Buffer.isBuffer(err.response.data)
+          ? err.response.data.toString("utf8")
+          : JSON.stringify(err.response.data);
+      } catch (_) {
+        detail = String(err.response.data);
+      }
+    }
+    console.error(`ElevenLabs TTS error (${status}):`, detail);
+    throw new Error(`ElevenLabs error (${status}): ${detail || err.message}`);
+  }
+
+  fs.writeFileSync(filePath, response.data);
+
+  return {
+    audioUrl: `/temp/${fileName}`,
+    filePath,
+  };
+}
+
+async function saveScriptAudioFile(scriptDoc, oldAudioFileName = "") {
+  const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
+  const voiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
+
+  if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
+  if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
+
+  fs.mkdirSync(AUDIO_DIR, { recursive: true });
+
+  if (oldAudioFileName) {
+    const oldPath = path.join(AUDIO_DIR, oldAudioFileName);
+    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+  }
+
+  const fileName = `script_${scriptDoc._id}_${Date.now()}.mp3`;
+  const filePath = path.join(AUDIO_DIR, fileName);
+
+  const response = await axios({
+    method: "post",
+    url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    headers: {
+      "xi-api-key": apiKey,
+      "Content-Type": "application/json",
+      Accept: "audio/mpeg",
+    },
+    responseType: "arraybuffer",
+    timeout: 60000,
+    data: {
+      text: String(scriptDoc.content),
+      model_id: "eleven_multilingual_v2",
+      voice_settings: { stability: 0.4, similarity_boost: 0.8 },
+    },
+  });
+
+  fs.writeFileSync(filePath, response.data);
+
+  scriptDoc.audioUrl = `/uploads/audio/${fileName}`;
+  scriptDoc.audioFileName = fileName;
+  scriptDoc.audioStatus = "ready";
+  scriptDoc.audioError = "";
+  await scriptDoc.save();
+
+  return { audioUrl: scriptDoc.audioUrl, fileName };
+}
+
 module.exports = {
   generateAsteriskTTS,
+  generateTempAudio,
+  saveScriptAudioFile,
+  AUDIO_DIR,
 };

@@ -711,7 +711,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     currentSectionRef.current = sectionIdx;
     document
       .getElementById(`section-${sectionIdx}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      ?.scrollIntoView({ block: "nearest" });
 
     const cacheKey = `${selectedScript._id}_${sectionIdx}`;
     let audioUrl = sectionBlobCache.current[cacheKey] || null;
@@ -744,7 +744,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       try {
         const response = await api.post("/scripts/generate-audio-temp", {
           scriptId: selectedScript._id,
-          sectionText: resolvedText,
+          text: resolvedText,
         });
 
         if (!isPlayingRef.current) return;
@@ -1381,7 +1381,6 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                               document
                                 .getElementById(`section-${idx}`)
                                 ?.scrollIntoView({
-                                  behavior: "smooth",
                                   block: "nearest",
                                 });
                             }}
@@ -1402,13 +1401,13 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                     )}
 
                     {/* Section blocks */}
-                    <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3">
+                    <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3" style={{ willChange: "transform", WebkitOverflowScrolling: "touch" }}>
                       {scriptSections.length > 0 ? (
                         scriptSections.map((sec, idx) => (
                           <div
                             key={idx}
                             id={`section-${idx}`}
-                            className={`rounded-xl border transition-all overflow-hidden ${
+                            className={`rounded-xl border overflow-hidden ${
                               completedSections.includes(idx)
                                 ? "opacity-40 border-gray-200"
                                 : activeSectionIndex === idx
@@ -1505,7 +1504,17 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
                             {/* Section body */}
                             {!completedSections.includes(idx) && (
-                              <div className="px-4 py-3 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap max-w-prose xl:max-w-3xl">
+                              <div
+                                className="px-4 py-3 text-sm font-normal leading-7 text-gray-700 whitespace-pre-wrap max-w-none antialiased"
+                                style={{
+                                  WebkitFontSmoothing: "antialiased",
+                                  MozOsxFontSmoothing: "grayscale",
+                                  textRendering: "optimizeLegibility",
+                                  fontWeight: 400,
+                                  transform: "translateZ(0)",
+                                  backfaceVisibility: "hidden",
+                                }}
+                              >
                                 {sec.content}
                               </div>
                             )}
@@ -1550,7 +1559,15 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-w-prose xl:max-w-3xl">
+                        <p
+                          className="text-sm font-normal text-gray-700 whitespace-pre-wrap leading-7 max-w-none antialiased"
+                          style={{
+                            WebkitFontSmoothing: "antialiased",
+                            MozOsxFontSmoothing: "grayscale",
+                            textRendering: "optimizeLegibility",
+                            fontWeight: 400,
+                          }}
+                        >
                           {replaceScriptPlaceholders(selectedScript.content)}
                         </p>
                       )}
