@@ -68,14 +68,13 @@ function amiLoginAndSend(actionPayload, options = {}) {
         if (buffer.includes("Authentication accepted")) {
           console.log("AMI login accepted");
           stage = "waiting_action";
-          buffer = ""; // IMPORTANT: clear login response buffer
+          buffer = "";
           socket.write(actionPayload);
           return;
         }
       }
 
       if (stage === "waiting_action") {
-        // Wait until a full AMI response block is present
         if (buffer.includes("\r\n\r\n")) {
           const actionResponse = buffer;
           console.log("AMI action response:\n", actionResponse);
@@ -104,42 +103,42 @@ function amiLoginAndSend(actionPayload, options = {}) {
   });
 }
 
-async function originateMicroSIPCall({
-  callId,
-  sipChannel,
-  agentExtension,
-  phoneNumber,
-  ttsFile,
-  callerIdName,
-}) {
-  const channel = sipChannel || `SIP/${agentExtension}`;
-  const callerId = callerIdName
-    ? `${callerIdName} <${agentExtension}>`
-    : `CRM <${agentExtension}>`;
+function buildAmiVariables(variables = {}) {
+  return Object.entries(variables)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => `Variable: ${key}=${value}\r\n`)
+    .join("");
+}
 
-  console.log("Starting originate with:");
-  console.log("callId:", callId);
-  console.log("channel:", channel);
-  console.log("agentExtension:", agentExtension);
-  console.log("phoneNumber:", phoneNumber);
-  console.log("ttsFile:", ttsFile);
+async function originateToContext({
+  actionId,
+  channel,
+  context,
+  extension = "s",
+  priority = 1,
+  timeout = 30000,
+  callerId,
+  variables = {},
+}) {
+  if (!channel) throw new Error("channel is required");
+  if (!context) throw new Error("context is required");
 
   const action =
     `Action: Originate\r\n` +
-    `ActionID: ${callId}\r\n` +
+    `ActionID: ${actionId}\r\n` +
     `Channel: ${channel}\r\n` +
-    `Context: crm-call-tts\r\n` +
-    `Exten: s\r\n` +
-    `Priority: 1\r\n` +
+    `Context: ${context}\r\n` +
+    `Exten: ${extension}\r\n` +
+    `Priority: ${priority}\r\n` +
     `Async: true\r\n` +
-    `Timeout: 30000\r\n` +
-    `CallerID: ${callerId}\r\n` +
-    `Variable: CRM_CALL_ID=${callId}\r\n` +
-    `Variable: APP_AGENT_EXTENSION=${agentExtension}\r\n` +
-    `Variable: APP_PHONE_NUMBER=${phoneNumber}\r\n` +
-    `Variable: TTS_FILE=${ttsFile}\r\n\r\n`;
+    `Timeout: ${timeout}\r\n` +
+    (callerId ? `CallerID: ${callerId}\r\n` : "") +
+    buildAmiVariables(variables) +
+    `\r\n`;
 
-  const response = await amiLoginAndSend(action);
+  const response = await amiLoginAndSend(action, {
+    timeoutMs: Math.max(timeout + 3000, 12000),
+  });
 
   if (!/Response:\s*Success/i.test(response)) {
     throw new Error(`AMI originate failed: ${response}`);
@@ -151,47 +150,123 @@ async function originateMicroSIPCall({
   };
 }
 
-async function listChannelsRaw() {
-  const action =
-    `Action: Command\r\n` +
-    `Command: core show channels concise\r\n\r\n`;
+async function originateConferenceCall({
+  callId,
+  confId,
+  sipChannel,
+  agentExtension,
+  phoneNumber,
+  starterTtsFile,
+  callerIdName,
+}) {
+  const channel = sipChannel || `SIP/${agentExtension}`;
+  const callerId = callerIdName
+    ? `${callerIdName} <${agentExtension}>`
+    : `CRM <${agentExtension}>`;
 
+  console.log("Starting conference originate with:");
+  console.log("callId:", callId);
+  console.log("confId:", confId);
+  console.log("channel:", channel);
+  console.log("agentExtension:", agentExtension);
+  console.log("phoneNumber:", phoneNumber);
+  console.log("starterTtsFile:", starterTtsFile);
+
+  return originateToContext({
+    actionId: callId,
+    channel,
+    context: "crm-call-tts",
+    extension: "s",
+    priority: 1,
+    timeout: 30000,
+    callerId,
+    variables: {
+      CRM_CALL_ID: callId,
+      CRM_CONF_ID: confId,
+      APP_AGENT_EXTENSION: agentExtension,
+      APP_PHONE_NUMBER: phoneNumber,
+      TTS_FILE: starterTtsFile,
+    },
+  });
+}
+
+async function originateLeadToConference({
+  callId,
+  confId,
+  phoneNumber,
+  callerIdName,
+}) {
+  if (!phoneNumber) {
+    throw new Error("phoneNumber is required");
+  }
+
+  const callerId = callerIdName ? `${callerIdName} <0000>` : `CRM <0000>`;
+
+  return originateToContext({
+    actionId: `${callId}_lead_${Date.now()}`,
+    channel: `Local/s@crm-dial-lead`,
+    context: "crm-dial-lead",
+    extension: "s",
+    priority: 1,
+    timeout: 45000,
+    callerId,
+    variables: {
+      CRM_CALL_ID: callId,
+      CRM_CONF_ID: confId,
+      APP_PHONE_NUMBER: phoneNumber,
+    },
+  });
+}
+
+async function queueTtsToConference({ callId, confId, ttsFile }) {
+  if (!confId) {
+    throw new Error("confId is required");
+  }
+
+  if (!ttsFile) {
+    throw new Error("ttsFile is required");
+  }
+
+  return originateToContext({
+    actionId: `${callId}_tts_${Date.now()}`,
+    channel: `Local/s@crm-play-tts`,
+    context: "crm-play-tts",
+    extension: "s",
+    priority: 1,
+    timeout: 30000,
+    callerId: `CRM-TTS <0000>`,
+    variables: {
+      CRM_CALL_ID: callId,
+      CRM_CONF_ID: confId,
+      TTS_FILE: ttsFile,
+    },
+  });
+}
+
+async function runAmiCommand(command) {
+  const action = `Action: Command\r\nCommand: ${command}\r\n\r\n`;
   return amiLoginAndSend(action, { timeoutMs: 12000 });
 }
 
-async function hangupByExtensionPrefix(agentExtension) {
-  const raw = await listChannelsRaw();
-  const lines = raw.split("\n").map((line) => line.trim()).filter(Boolean);
-
-  const matchedChannels = [];
-
-  for (const line of lines) {
-    const parts = line.split("!");
-    const channelName = parts[0];
-
-    if (channelName && channelName.startsWith(`SIP/${agentExtension}-`)) {
-      matchedChannels.push(channelName);
-    }
+async function hangupConference(confId) {
+  if (!confId) {
+    throw new Error("confId is required");
   }
 
-  console.log("Matched channels for hangup:", matchedChannels);
-
-  for (const channel of matchedChannels) {
-    const action =
-      `Action: Hangup\r\n` +
-      `Channel: ${channel}\r\n\r\n`;
-
-    await amiLoginAndSend(action);
-  }
+  const raw = await runAmiCommand(`confbridge kick ${confId} all`);
 
   return {
     success: true,
-    channels: matchedChannels,
+    raw,
+    confId,
   };
 }
 
 module.exports = {
   amiLoginAndSend,
-  originateMicroSIPCall,
-  hangupByExtensionPrefix,
+  originateToContext,
+  originateConferenceCall,
+  originateLeadToConference,
+  queueTtsToConference,
+  hangupConference,
 };
