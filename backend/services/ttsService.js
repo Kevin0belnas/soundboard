@@ -7,11 +7,23 @@ const SftpClient = require("ssh2-sftp-client");
 
 const execFileAsync = util.promisify(execFile);
 
+function sanitizeFileBase(fileBase = "tts") {
+  return (
+    String(fileBase)
+      .trim()
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+      .replace(/\s+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 120) || "tts"
+  );
+}
+
 async function uploadToAsteriskServer(localPath, remoteFileName) {
   const sftp = new SftpClient();
 
   const host = process.env.ASTERISK_HOST;
-  const port = Number(process.env.ASTERISK_SSH_PORT);
+  const port = Number(process.env.ASTERISK_SSH_PORT || 22);
   const username = process.env.ASTERISK_SSH_USER;
   const password = process.env.ASTERISK_SSH_PASSWORD;
   const remoteDir =
@@ -23,7 +35,15 @@ async function uploadToAsteriskServer(localPath, remoteFileName) {
     );
   }
 
-  const remotePath = `${remoteDir}/${remoteFileName}`;
+  if (!fs.existsSync(localPath)) {
+    throw new Error(`Local file does not exist: ${localPath}`);
+  }
+
+  const safeRemoteFileName =
+    sanitizeFileBase(path.basename(remoteFileName, path.extname(remoteFileName))) +
+    path.extname(remoteFileName || ".wav");
+
+  const remotePath = `${remoteDir.replace(/\/+$/, "")}/${safeRemoteFileName}`;
 
   try {
     console.log("Uploading WAV to Asterisk server...");
@@ -43,15 +63,15 @@ async function uploadToAsteriskServer(localPath, remoteFileName) {
     }
 
     await sftp.put(localPath, remotePath);
-    await sftp.end();
-
     console.log("Upload complete:", remotePath);
+
     return remotePath;
   } catch (error) {
+    throw new Error(`SFTP upload failed: ${error.message}`);
+  } finally {
     try {
       await sftp.end();
     } catch (_) {}
-    throw new Error(`SFTP upload failed: ${error.message}`);
   }
 }
 
@@ -76,14 +96,20 @@ async function generateAsteriskTTS(text, fileBaseName) {
     throw new Error("TTS text is required");
   }
 
+  const safeFileBase = sanitizeFileBase(fileBaseName || "tts");
+
   fs.mkdirSync(localTempDir, { recursive: true });
 
-  const mp3Path = path.join(localTempDir, `${fileBaseName}.mp3`);
-  const wavPath = path.join(localTempDir, `${fileBaseName}.wav`);
+  const mp3Path = path.join(localTempDir, `${safeFileBase}.mp3`);
+  const wavPath = path.join(localTempDir, `${safeFileBase}.wav`);
 
-  console.log("ElevenLabs key loaded:", apiKey ? `yes (${apiKey.length} chars)` : "no");
+  console.log(
+    "ElevenLabs key loaded:",
+    apiKey ? `yes (${apiKey.length} chars)` : "no"
+  );
   console.log("ElevenLabs voice loaded:", voiceId || "missing");
   console.log("Using ffmpeg path:", ffmpegPath);
+  console.log("Safe TTS file base:", safeFileBase);
 
   try {
     const response = await axios({
@@ -136,20 +162,26 @@ async function generateAsteriskTTS(text, fileBaseName) {
     );
   }
 
-  await execFileAsync(ffmpegPath, [
-    "-y",
-    "-i",
-    mp3Path,
-    "-ar",
-    "8000",
-    "-ac",
-    "1",
-    "-c:a",
-    "pcm_s16le",
-    wavPath,
-  ]);
+  try {
+    await execFileAsync(ffmpegPath, [
+      "-y",
+      "-i",
+      mp3Path,
+      "-ar",
+      "8000",
+      "-ac",
+      "1",
+      "-c:a",
+      "pcm_s16le",
+      wavPath,
+    ]);
+  } catch (error) {
+    throw new Error(
+      `FFmpeg conversion failed: ${error.message || "Unknown FFmpeg error"}`
+    );
+  }
 
-  const remoteFileName = `${fileBaseName}.wav`;
+  const remoteFileName = `${safeFileBase}.wav`;
   const remotePath = await uploadToAsteriskServer(wavPath, remoteFileName);
 
   try {
@@ -157,7 +189,7 @@ async function generateAsteriskTTS(text, fileBaseName) {
   } catch (_) {}
 
   return {
-    playbackFile: `tts/${fileBaseName}`,
+    playbackFile: `tts/${safeFileBase}`,
     wavPath,
     remotePath,
   };
@@ -268,7 +300,5 @@ async function saveScriptAudioFile(scriptDoc, oldAudioFileName = "") {
 
 module.exports = {
   generateAsteriskTTS,
-  generateTempAudio,
-  saveScriptAudioFile,
-  AUDIO_DIR,
+  sanitizeFileBase,
 };
