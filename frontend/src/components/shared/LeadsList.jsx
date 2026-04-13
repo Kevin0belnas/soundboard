@@ -123,11 +123,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [notification, setNotification] = useState({
-    show: false,
-    type: "",
-    message: "",
-  });
+  const [notification, setNotification] = useState({show: false, type: "", message: ""});
 
   // Modals states
   const [selectedLead, setSelectedLead] = useState(null);
@@ -151,8 +147,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const [playingScriptId, setPlayingScriptId] = useState(null);
   const [pausedId, setPausedId] = useState(null);
   const [generatingAudio, setGeneratingAudio] = useState(false);
-  const [pauseAwaitingSectionIndex, setPauseAwaitingSectionIndex] =
-    useState(null);
+  const [pauseAwaitingSectionIndex, setPauseAwaitingSectionIndex] = useState(null);
   const audioRef = useRef(null);
   const isPlayingRef = useRef(false);
   const currentSectionRef = useRef(0);
@@ -181,18 +176,11 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     }
   }, []);
 
-  const userId =
-    localStorage.getItem("userId") ||
-    localStorage.getItem("_id") ||
-    storedUser._id ||
-    storedUser.id ||
-    "";
+  const userId = localStorage.getItem("userId") || localStorage.getItem("_id") || storedUser._id || storedUser.id || "";
   const userName = localStorage.getItem("name") || storedUser.name || "User";
   const userRole = localStorage.getItem("role") || storedUser.role || "opener";
-  const userExtension =
-    storedUser.extension || localStorage.getItem("extension") || "";
-  const userDid =
-    storedUser.didNumber || localStorage.getItem("didNumber") || "";
+  const userExtension = storedUser.extension || localStorage.getItem("extension") || "";
+  const userDid = storedUser.didNumber || localStorage.getItem("didNumber") || "";
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -1366,7 +1354,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                             {copied ? "Copied!" : "Copy"}
                           </button>
                         </div>
-                      </div>
+                      </div>  
                     </div>
 
                     {/* Section nav pills */}

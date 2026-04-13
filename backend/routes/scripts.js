@@ -12,8 +12,7 @@ const { getCachedPath } = require("../utils/dynamicCache");
 // const { AUDIO_DIR, saveScriptAudioFile, generateTempAudio } = require("../services/ttsService");
 
 const DYNAMIC_PLACEHOLDER = /\[[^\]]+\]/;
-const STAGE_DIRECTION =
-  /^(\[PAUSE[^\]]*\]|Pause\.?(\s+Let them agree\.?)?(\s+Let them answer\.?)?(\s+Then transition\.?)?|Let them agree\.?|Let them answer\.?|Then transition\.?|Wait for (response|answer|reply)\.?|Transition\.?|Note:.*)$/i;
+const STAGE_DIRECTION = /^(\[PAUSE[^\]]*\]|Pause\.?(\s+Let them agree\.?)?(\s+Let them answer\.?)?(\s+Then transition\.?)?|Let them agree\.?|Let them answer\.?|Then transition\.?|Wait for (response|answer|reply)\.?|Transition\.?|Note:.*)$/i;
 
 function parseScriptSectionsBackend(content) {
   if (!content) return [];
@@ -60,7 +59,7 @@ function parseScriptSectionsBackend(content) {
     });
   if (sections.length === 0)
     sections.push({ title: "Script", content: content.trim() });
-  return sections;
+  return sections;  
 }
 
 function stripStageDirections(text) {
@@ -70,6 +69,7 @@ function stripStageDirections(text) {
     .join("\n")
     .trim();
 }
+
 const { AUDIO_DIR, saveScriptAudioFile, generateTempAudio } = require("../services/ttsService");
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
