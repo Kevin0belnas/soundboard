@@ -171,8 +171,6 @@ function App() {
           }
         />
 
-        
-
         {/* Closer Routes */}
         <Route
           path="/closer"
@@ -209,7 +207,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-       
 
         {/* Default & catch-all */}
         <Route path="/" element={<Navigate to="/login" replace />} />

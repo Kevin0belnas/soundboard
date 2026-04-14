@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import ScriptList from "../../components/shared/ScriptList";
 import LogList from "./LogList";
 import ScriptForm from "../../components/shared/ScriptForm";
-import VoiceSoundboard from "../../components/shared/VoiceSoundBoard";
 import AgentsList from "./AgentsList";
 import AddAgent from "./AddAgent";
 import Contacts from "./Contacts";
@@ -28,7 +27,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
     if (path.includes("/admin/scripts")) return "scripts";
     if (path.includes("/admin/addagents")) return "addagents";
     if (path.includes("/admin/logs")) return "logs";
-    if (path.includes("/admin/voice-soundboard")) return "voice-soundboard";
     if (path.includes("/admin/contacts")) return "contacts";
     return initialView;
   });
@@ -103,7 +101,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
   const navItems = [
     { id: "scripts", label: "Scripts", icon: FiBook },
     { id: "addagents", label: "Add Agents", icon: FiPlusCircle },
-    { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
     { id: "logs", label: "Logs", icon: FiClock },
     { id: "contacts", label: "Contacts", icon: FiUserPlus },
   ];
@@ -114,10 +111,8 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
       : view === "logs"
         ? "Activity Logs"
         : view === "addagents"
-          ? "Add Agents"
-          : view === "contacts"
-            ? "Contacts"
-            : "Voice Soundboard";
+          ? "Add Agents" 
+            : "Contacts";
 
   const pageSubtitle =
     view === "scripts"
@@ -126,9 +121,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
         ? "Monitor and analyze system activity"
         : view === "addagents"
           ? "Manage and add agents to the system"
-          : view === "contacts"
-            ? "View and manage all contacts"
-            : "Click a script and let ElevenLabs speak it";
+          : "View and manage all contacts";
 
   return (
     <div
@@ -188,7 +181,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
               <div className="flex-1 overflow-hidden">
                 <p className="font-medium truncate">{userName}</p>
                 <p className="text-xs text-gray-400 flex items-center">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
                   Administrator
                 </p>
               </div>
@@ -368,7 +360,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
               />
             )}
             {view === "logs" && <LogList searchQuery={searchQuery} />}
-            {view === "voice-soundboard" && <VoiceSoundboard />}
             {view === "addagents" && (
               <AgentsList
                 key={agentsRefreshKey}

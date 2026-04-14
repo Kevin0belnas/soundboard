@@ -449,7 +449,6 @@ export default function ScriptList({
                       </span>
                     </div>
 
-
                     <p className="text-gray-600 text-xs sm:text-sm leading-relaxed mb-3 line-clamp-2">
                       {script.content}
                     </p>
@@ -459,7 +458,6 @@ export default function ScriptList({
                         {script.audioError}
                       </div>
                     )}
-
 
                     <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-gray-500">
                       {script.author && (

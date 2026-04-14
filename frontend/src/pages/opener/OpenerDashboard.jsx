@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Routes, Route } from "react-router-dom"; 
 import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
-import VoiceSoundboard from "../../components/shared/VoiceSoundBoard";
 import Leads from "./Leads";
 import {
   FiBook,
@@ -12,12 +11,10 @@ import {
   FiX,
   FiChevronRight,
   FiSearch,
-  FiRefreshCw,
-  FiVolume2,
+  FiRefreshCw, 
   FiUserCheck,
 } from "react-icons/fi";
 
-// Separate component for Scripts view
 function ScriptsView({ searchQuery, onEditScript, refreshKey }) {
   return (
     <ScriptList
@@ -90,14 +87,12 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
   const navItems = [
     { id: "leads", label: "My Leads", icon: FiUserCheck },
     { id: "scripts", label: "Scripts", icon: FiBook },
-    { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
   ];
 
   // Get current view from URL path
   const getCurrentView = () => {
     const path = location.pathname;
     if (path.includes("/opener/scripts")) return "scripts";
-    if (path.includes("/opener/voice-soundboard")) return "voice-soundboard";
     if (path.includes("/opener/leads")) return "leads";
     return initialView; // Fallback to initialView
   };
@@ -105,13 +100,11 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
   const currentView = getCurrentView();
 
   const pageTitle = 
-    currentView === "scripts" ? "Script Management" :
-    currentView === "voice-soundboard" ? "Voice Soundboard" :
+    currentView === "scripts" ? "Script Management" : 
     "My Leads";
 
   const pageSubtitle = 
     currentView === "scripts" ? "Create, edit, and manage your automation scripts" :
-    currentView === "voice-soundboard" ? "Click a script and let ElevenLabs speak it" :
     "View and manage leads assigned to you";
 
   return (
@@ -175,7 +168,6 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
               <div className="flex-1 overflow-hidden">
                 <p className="font-medium truncate">{userName}</p>
                 <p className="text-xs text-gray-400 flex items-center">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
                   {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
                 </p>
               </div>
@@ -280,7 +272,7 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
               </div>
 
               <div className="flex items-center space-x-2">
-                {/* Search - desktop only */}
+                {/* Search (Desktop) */}
                 {currentView === "scripts" && (
                   <div className="hidden md:flex items-center bg-gray-100 rounded-lg px-3 py-2">
                     <FiSearch className="w-4 h-4 text-gray-400" />
@@ -295,7 +287,7 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                   </div>
                 )}
 
-                {/* Refresh - desktop only */}
+                {/* Refresh (Desktop) */}
                 <button
                   onClick={handleRefresh}
                   className="hidden sm:block p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
@@ -332,7 +324,7 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
 
         {/* Page content */}
         <main className="flex-1 overflow-hidden">
-          {/* Action buttons - only for scripts view */}
+          {/* Action buttons (Only for scripts view) */}
           {currentView === "scripts" && (
             <div className="px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8 pb-6 flex flex-wrap gap-4 items-center justify-between">
               <button
@@ -366,13 +358,7 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                 refreshKey={refreshKey}
               />
             </div>
-          )}
-          
-          {currentView === "voice-soundboard" && (
-            <div className="mx-4 sm:mx-6 lg:mx-8 mb-4 sm:mb-6 lg:mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-              <VoiceSoundboard />
-            </div>
-          )}
+          )} 
 
           {currentView === "leads" && <Leads />}
         </main>

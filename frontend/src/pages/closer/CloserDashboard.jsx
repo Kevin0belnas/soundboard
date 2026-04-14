@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
-import VoiceSoundboard from "../../components/shared/VoiceSoundBoard";
 import Leads from "./Leads";
 import {
   FiBook,
@@ -13,7 +12,6 @@ import {
   FiChevronRight,
   FiSearch,
   FiRefreshCw,
-  FiVolume2,
 } from "react-icons/fi";
 
 export default function CloserDashboard({ onLogout, initialView = "leads" }) {
@@ -78,7 +76,6 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
   const navItems = [
     { id: "leads", label: "Leads", icon: FiBook },
     { id: "scripts", label: "Scripts", icon: FiBook },
-    { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
   ];
 
   const pageTitle =
@@ -86,18 +83,14 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
       ? "Script Management"
       : view === "logs"
         ? "Activity Logs"
-        : view === "leads"
-          ? "Lead Management"
-          : "Voice Soundboard";
+        : "Lead Management";
 
   const pageSubtitle =
     view === "scripts"
       ? "Create, edit, and manage your automation scripts"
       : view === "logs"
         ? "Monitor and analyze system activity"
-        : view === "leads"
-          ? "Manage your leads effectively"
-          : "Click a script and let ElevenLabs speak it";
+        : "Manage your leads effectively";
 
   return (
     <div
@@ -158,7 +151,6 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
               <div className="flex-1 overflow-hidden">
                 <p className="font-medium truncate">{userName}</p>
                 <p className="text-xs text-gray-400 flex items-center">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
                   Closer
                 </p>
               </div>
@@ -314,12 +306,27 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
         <main className="flex-1 overflow-hidden">
           <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
             {view === "scripts" && (
-              <button
-                onClick={() => handleOpenScriptForm()}
-                className="group flex items-center space-x-2 px-3 sm:px-4 py-2 text-sm sm:text-base bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25"
-              >
-                <span className="font-medium">New Script</span>
-              </button>
+              <div className="px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8 pb-6 flex flex-wrap gap-4 items-center justify-between">
+                <button
+                  onClick={() => handleOpenScriptForm()}
+                  className="group flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25"
+                >
+                  <span className="font-medium">New Script</span>
+                </button>
+
+                {/* Mobile search */}
+                <div className="md:hidden flex items-center bg-white rounded-lg px-3 py-2 border border-gray-200 w-full sm:w-auto">
+                  <FiSearch className="w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search scripts..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="ml-2 bg-transparent border-none focus:outline-none text-sm flex-1"
+                    aria-label="Search scripts"
+                  />
+                </div>
+              </div>
             )}
 
             {view === "scripts" && (
@@ -337,13 +344,14 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
             )}
           </div>
           {view === "scripts" && (
-            <ScriptList
-              key={refreshKey}
-              searchQuery={searchQuery}
-              onEditScript={handleOpenScriptForm}
-            />
+            <div className="-mt-4 mx-4 sm:mx-6 lg:mx-8 mb-4 sm:mb-6 lg:mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+              <ScriptList
+                key={refreshKey}
+                searchQuery={searchQuery}
+                onEditScript={handleOpenScriptForm}
+              />
+            </div>
           )}
-          {view === "voice-soundboard" && <VoiceSoundboard />}
           {view === "leads" && <Leads />}s
         </main>
       </div>
