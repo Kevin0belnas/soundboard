@@ -220,7 +220,7 @@ async function generateTempAudio(text, fileBaseName) {
         "xi-api-key": apiKey,
         "Content-Type": "application/json",
         Accept: "audio/mpeg",
-      },
+      }, 
       responseType: "arraybuffer",
       timeout: 60000,
       data: {
@@ -299,6 +299,9 @@ async function saveScriptAudioFile(scriptDoc, oldAudioFileName = "") {
 }
 
 module.exports = {
+  AUDIO_DIR,
   generateAsteriskTTS,
+  generateTempAudio,
   sanitizeFileBase,
+  saveScriptAudioFile,
 };

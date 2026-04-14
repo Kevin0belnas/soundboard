@@ -13,8 +13,7 @@ import {
   FiSearch,
   FiSend,
   FiStar,
-  FiThumbsDown,
-  FiUser,
+  FiThumbsDown, 
   FiUserCheck,
   FiVolume2,
   FiX,
@@ -24,47 +23,54 @@ import Pagination from "../../components/Pagination";
 function parseScriptSections(content) {
   if (!content) return [];
 
-  const lines = String(content).split("\n");
+  const lines = content.split("\n");
   const sections = [];
-  let currentTitle = "";
+  let currentSection = null;
   let currentLines = [];
 
-  const isHeader = (line) => {
-    const t = line.trim();
+  const isSectionHeader = (line) => {
+    const trimmed = line.trim();
     return (
-      t.length > 0 &&
-      t.length < 90 &&
-      /^[A-Z"]/i.test(t) &&
-      !/[.!?,:]$/.test(t) &&
-      !t.startsWith("•") &&
-      !t.startsWith("-")
+      trimmed.length > 0 &&
+      trimmed.length < 80 &&
+      !trimmed.startsWith("•") &&
+      !trimmed.startsWith("-") &&
+      !/[.!?,:"]$/.test(trimmed) &&
+      /^[A-Z"]/.test(trimmed) &&
+      !trimmed.includes("[PAUSE]") &&
+      !/^(As\s+mentioned)/i.test(trimmed)
     );
   };
 
   for (const line of lines) {
-    if (isHeader(line)) {
-      if (currentTitle || currentLines.join("").trim()) {
+    if (isSectionHeader(line)) {
+      if (currentSection) {
         sections.push({
-          title: currentTitle || `Sub-script ${sections.length + 1}`,
+          title: currentSection,
+          content: currentLines.join("\n").trim(),
+        });
+      } else if (currentLines.join("").trim().length > 0) {
+        sections.push({
+          title: "Intro",
           content: currentLines.join("\n").trim(),
         });
       }
-      currentTitle = line.trim();
+      currentSection = line.trim();
       currentLines = [];
     } else {
       currentLines.push(line);
     }
   }
 
-  if (currentTitle || currentLines.join("").trim()) {
+  if (currentSection) {
     sections.push({
-      title: currentTitle || `Sub-script ${sections.length + 1}`,
+      title: currentSection,
       content: currentLines.join("\n").trim(),
     });
   }
 
-  if (!sections.length) {
-    sections.push({ title: "Sub-script 1", content: String(content).trim() });
+  if (sections.length === 0) {
+    sections.push({ title: "Script", content: content.trim() });
   }
 
   return sections;
@@ -76,6 +82,7 @@ const STAGE_DIRECTION_PATTERNS = [
   /^Let them answer\.?$/i,
   /^Wait for (response|answer|reply)\.?$/i,
   /^Transition\.?$/i,
+  /^Let them agree\.?$/i,
   /^Note:/i,
   /^Close$/i,
 ];
@@ -136,6 +143,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const [selectedScript, setSelectedScript] = useState(null);
   const [scriptSections, setScriptSections] = useState([]);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
+  const [activeSectionTitle, setActiveSectionTitle] = useState(null);
   const [copied, setCopied] = useState(false);
 
   const [openerName, setOpenerName] = useState("");
@@ -211,6 +219,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     const sections = parseScriptSections(replaceScriptPlaceholders(selectedScript.content));
     setScriptSections(sections);
     setActiveSectionIndex(0);
+    setActiveSectionTitle(null);
     stopPreview();
     previewCacheRef.current = {};
   }, [selectedScript, selectedLead, openerName, managerName, callManagerId]);
@@ -222,26 +231,30 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     }, 3000);
   };
 
-  const resolvedManagerName =
-    managerName || (!selectedLead?.transferred_to ? openerName : "") || "";
+  const resolvedManagerName = managerName || (!selectedLead?.transferred_to ? openerName : "") || "";
 
-  const replaceScriptPlaceholders = useCallback(
-    (content) => {
-      const currentUserName = localStorage.getItem("name") || "User";
-      return String(content || "")
-        .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
-        .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
-        .replace(/\[Your Name\]/g, currentUserName)
-        .replace(/\[Manager Name\]/g, resolvedManagerName || "Manager")
-        .replace(
-          /\[Opener Name\]/g,
-          (!selectedLead?.transferred_to
-            ? openerAgents.find((a) => String(a.id) === String(callManagerId))?.name
-            : openerName) || "Opener",
-        );
-    },
-    [selectedLead, resolvedManagerName, openerAgents, openerName, callManagerId],
-  );
+  const shouldRemoveOpenerPlaceholder =
+    userRole === "closer" && !selectedLead?.transferred_to;
+
+  const removeOpenerPlaceholder = (text) => {
+    if (!text || !shouldRemoveOpenerPlaceholder) return text || "";
+    return text.replace(/\s*\[Opener Name\]\s*/g, " ");
+  };
+
+  const replaceScriptPlaceholders = (content) => {
+    const currentUserName = localStorage.getItem("name") || "User";
+    return removeOpenerPlaceholder(content || "")
+      .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
+      .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
+      .replace(/\[Your Name\]/g, currentUserName)
+      .replace(/\[Manager Name\]/g, resolvedManagerName || "[Manager Name]")
+      .replace(
+        /\[Opener Name\]/g,
+        (!selectedLead?.transferred_to
+          ? openerAgents.find((a) => a.id === callManagerId)?.name
+          : openerName) || "[Opener Name]",
+      );
+  };
 
   const normalizeScriptForTts = useCallback(
     (content) => cleanTextForTTS(replaceScriptPlaceholders(content || "")),
@@ -571,14 +584,14 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     setGeneratingPreview(false);
   };
 
-  const previewSection = async (section, sectionIndex) => {
+  const previewSection = async (section, sectionIndex) => { 
     if (!selectedScript || !section) return;
 
     const itemId = `${selectedScript._id}::section::${sectionIndex}`;
     if (playingPreviewId === itemId) {
       stopPreview();
       return;
-    }
+    }  
 
     stopPreview();
     setActiveSectionIndex(sectionIndex);
@@ -592,6 +605,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
           scriptId: selectedScript._id,
           sectionText: normalizeScriptForTts(section.content),
         });
+        
         if (!response.data?.success) {
           throw new Error("Failed to generate preview");
         }
@@ -895,11 +909,11 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
               <div className="min-w-0">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">Scripts for {selectedLead.name}</h3>
                 <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">Book: "{selectedLead.book_title}"</p>
-                {selectedScript && starterSection && (
+                {selectedScript && starterSection && ( 
                   <p className="text-[11px] text-green-700 mt-1">
-                    Selected script: <span className="font-medium">{selectedScript.title}</span> · Starter sub-script: <span className="font-medium">{starterSection.title}</span>
+                    Selected script: <span className="font-medium">{selectedScript.title}</span> · Starter sub-script: <span className="font-medium">{activeSectionTitle === null ? starterSection.title : activeSectionTitle}</span>
                   </p>
-                )}
+                )} 
               </div>
               <button onClick={closeScriptModal} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
                 <FiX className="h-5 w-5" />
@@ -918,6 +932,10 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                     <div className="text-sm text-gray-400 text-center py-8">No scripts</div>
                   ) : (
                     scripts.map((script) => {
+                      // activeSectionTitle = null;
+                      // if (selectedScript?._id === script._id && activeSection) {
+                      //   activeSectionTitle = activeSection.title;
+                      // }
                       const isSelected = selectedScript?._id === script._id;
                       return (
                         <button
@@ -932,7 +950,10 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                               <div className="flex items-center gap-2 mt-1 flex-wrap">
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{script.type}</span>
                                 {selectedScript?._id === script._id && starterSection && (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700">starter: {starterSection.title}</span>
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                    {
+                                    activeSectionTitle === null ? `${starterSection.title}` : activeSectionTitle}
+                                    </span>
                                 )}
                               </div>
                             </div>
@@ -955,7 +976,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                               <h4 className="text-sm font-semibold text-gray-900 truncate">{selectedScript.title}</h4>
                               {starterSection && (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-                                  starter sub-script: {starterSection.title}
+                                  starter sub-script: {activeSectionTitle === null ? starterSection.title : activeSectionTitle}
                                 </span>
                               )}
                             </div>
@@ -1022,7 +1043,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                         {scriptSections.map((section, idx) => (
                           <button
                             key={`${selectedScript._id}-${idx}`}
-                            onClick={() => setActiveSectionIndex(idx)}
+                            onClick={() => [setActiveSectionIndex(idx), setActiveSectionTitle(section.title || `Sub-script ${idx + 1}`)]}
                             className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border ${activeSectionIndex === idx ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"}`}
                           >
                             {section.title || `Sub-script ${idx + 1}`}
