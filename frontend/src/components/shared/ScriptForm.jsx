@@ -9,7 +9,7 @@ export default function ScriptForm({ script, onClose, onSave }) {
     title: script?.title || script?.name || "",
     content: script?.content || "",
     type: script?.type || defaultType
-  });
+  }); 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 

@@ -10,10 +10,11 @@ import {
   FiClock,
   FiAlertCircle,
   FiCheckCircle,
-  FiXCircle,
+  FiX,
   FiPlay,
   FiPause,
   FiVolume2,
+  FiCopy,
 } from "react-icons/fi";
 import Pagination from "../Pagination";
 
@@ -31,13 +32,17 @@ export default function ScriptList({
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [playingId, setPlayingId] = useState(null);
 
+  const [viewScript, setViewScript] = useState(null);
+  const [copyTitle, setCopyTitle] = useState("");
+  const [copying, setCopying] = useState(false);
+
   const [regenerating, setRegenerating] = useState(null);
 
   const audioRef = useRef(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  
+
   const userRole = localStorage.getItem("role");
   const userId = localStorage.getItem("userId");
 
@@ -49,7 +54,7 @@ export default function ScriptList({
   // Filter types based on user role
   const getFilterTypes = () => {
     if (userRole === "admin") {
-      return ["all", "admin", ...new Set(scripts.map(s => s.type))];
+      return ["all", "admin", ...new Set(scripts.map((s) => s.type))];
     } else if (userRole === "closer") {
       return ["all", "admin", "opener", userRole];
     }
@@ -63,7 +68,10 @@ export default function ScriptList({
   const totalItems = filteredScripts.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedScripts = filteredScripts.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedScripts = filteredScripts.slice(
+    startIndex,
+    startIndex + itemsPerPage,
+  );
 
   const fetchScripts = async () => {
     try {
@@ -71,8 +79,8 @@ export default function ScriptList({
       setError("");
 
       const token = localStorage.getItem("token");
-      const userRole = localStorage.getItem("role"); 
-      
+      const userRole = localStorage.getItem("role");
+
       if (!token) {
         setError("Not authenticated. Please login again.");
         setLoading(false);
@@ -82,8 +90,8 @@ export default function ScriptList({
       const res = await fetch("http://localhost:5000/api/scripts", {
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
       });
 
       if (res.status === 401) {
@@ -106,12 +114,14 @@ export default function ScriptList({
         ...script,
         normalizedType: normalizeType(script.type),
         canEdit: userRole === "admin" || script.author?._id === userId,
-        canDelete: userRole === "admin" || script.author?._id === userId
+        canDelete: userRole === "admin" || script.author?._id === userId,
       }));
 
-        if (userRole === "opener") {
+      if (userRole === "opener") {
         scriptsArray = scriptsArray.filter(
-          (script) => script.normalizedType === "admin" || script.normalizedType === "opener"
+          (script) =>
+            script.normalizedType === "admin" ||
+            script.normalizedType === "opener",
         );
       }
 
@@ -129,11 +139,12 @@ export default function ScriptList({
 
     if (query) {
       const lowerQuery = query.toLowerCase();
-      filtered = filtered.filter(script => 
-        (script.title || "").toLowerCase().includes(lowerQuery) ||
-        (script.content || "").toLowerCase().includes(lowerQuery) ||
-        (script.type || "").toLowerCase().includes(lowerQuery) ||
-        (script.audioStatus || "").toLowerCase().includes(lowerQuery)
+      filtered = filtered.filter(
+        (script) =>
+          (script.title || "").toLowerCase().includes(lowerQuery) ||
+          (script.content || "").toLowerCase().includes(lowerQuery) ||
+          (script.type || "").toLowerCase().includes(lowerQuery) ||
+          (script.audioStatus || "").toLowerCase().includes(lowerQuery),
       );
     }
 
@@ -168,8 +179,8 @@ export default function ScriptList({
       const res = await fetch(`http://localhost:5000/api/scripts/${id}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (res.status === 401) {
@@ -194,14 +205,49 @@ export default function ScriptList({
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!copyTitle.trim() || !viewScript) return;
+    setCopying(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/scripts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: copyTitle.trim(),
+          content: viewScript.content,
+          type: viewScript.normalizedType,
+        }),
+      });
+      if (res.ok) {
+        setViewScript(null);
+        setCopyTitle("");
+        fetchScripts();
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to duplicate script");
+      }
+    } catch {
+      setError("Failed to duplicate script");
+    } finally {
+      setCopying(false);
+    }
+  };
+
   const handleRegenerateAudio = async (script) => {
     try {
       setRegenerating(script._id);
       const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:5000/api/scripts/${script._id}/regenerate-audio`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `http://localhost:5000/api/scripts/${script._id}/regenerate-audio`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       if (res.ok) fetchScripts();
       else setError("Failed to regenerate audio");
     } catch {
@@ -261,7 +307,7 @@ export default function ScriptList({
       admin: "bg-purple-100 text-purple-800 border-purple-200",
       closer: "bg-green-100 text-green-800 border-green-200",
       opener: "bg-indigo-100 text-indigo-800 border-indigo-200",
-      default: "bg-gray-100 text-gray-800 border-gray-200"
+      default: "bg-gray-100 text-gray-800 border-gray-200",
     };
     return colors[type?.toLowerCase()] || colors.default;
   };
@@ -287,8 +333,73 @@ export default function ScriptList({
 
     if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffHours < 24)
+      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
     return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError("Not authenticated. Please login again.");
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 2000);
+      return;
+    }
+
+    const method = script ? "PUT" : "POST";
+    const url = script
+      ? `http://localhost:5000/api/scripts/${script._id}`
+      : "http://localhost:5000/api/scripts";
+
+    const scriptData = {
+      title: formData.title,
+      content: formData.content,
+      type: formData.type,
+    };
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(scriptData),
+      });
+
+      const data = await res.json();
+
+      if (res.status === 401) {
+        setError("Session expired. Please login again.");
+        localStorage.clear();
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 2000);
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save script");
+      }
+
+      if (onSave) {
+        onSave();
+      }
+
+      onClose();
+    } catch (err) {
+      console.error("Error saving script:", err);
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -306,7 +417,89 @@ export default function ScriptList({
   }
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="p-4 sm:p-6"> 
+      {viewScript && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => {
+            setViewScript(null);
+            setCopyTitle("");
+          }}
+        >
+          <div
+            className="bg-white w-full max-w-3xl rounded-xl shadow-2xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 p-5 border-b border-gray-200">
+              <div className="min-w-0">
+                <h3 className="text-lg font-semibold text-gray-900 truncate">
+                  {viewScript.title}
+                </h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span
+                    className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getTypeColor(viewScript.normalizedType)}`}
+                  >
+                    {viewScript.normalizedType}
+                  </span>
+                  {viewScript.author && (
+                    <span className="text-xs text-gray-400">
+                      by {viewScript.author.name || viewScript.author.email}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {viewScript.canEdit && (
+                  <button
+                    onClick={() => {
+                      setViewScript(null);
+                      setCopyTitle("");
+                      onEditScript(viewScript);
+                    }}
+                    className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-indigo-700 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
+                  >
+                    <FiEdit2 className="w-3.5 h-3.5 mr-1.5" />
+                    Edit
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setViewScript(null);
+                    setCopyTitle("");
+                  }}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  <FiX className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-sans">
+                {viewScript.content}
+              </pre>
+            </div>
+
+            <div className="p-4 border-t border-gray-200 flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Copy title..."
+                value={copyTitle}
+                onChange={(e) => setCopyTitle(e.target.value)}
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                onClick={handleDuplicate}
+                disabled={!copyTitle.trim() || copying}
+                className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg disabled:opacity-50"
+              >
+                <FiCopy className="w-3.5 h-3.5 mr-1.5" />
+                {copying ? "Copying..." : "Duplicate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
@@ -315,7 +508,8 @@ export default function ScriptList({
               Script Library
             </h2>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">
-              {filteredScripts.length} {filteredScripts.length === 1 ? "script" : "scripts"} available
+              {filteredScripts.length}{" "}
+              {filteredScripts.length === 1 ? "script" : "scripts"} available
             </p>
           </div>
         </div>
@@ -331,7 +525,6 @@ export default function ScriptList({
               className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-3 text-sm border border-gray-200 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white/50 backdrop-blur-sm"
             />
           </div>
-
 
           <div className="flex gap-2">
             <button
@@ -351,7 +544,9 @@ export default function ScriptList({
               className="px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg sm:rounded-xl text-gray-600 hover:bg-gray-50 transition-all"
               disabled={loading}
             >
-              <FiRefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${loading ? "animate-spin" : ""}`} />
+              <FiRefreshCw
+                className={`w-4 h-4 sm:w-5 sm:h-5 ${loading ? "animate-spin" : ""}`}
+              />
             </button>
           </div>
         </div>
@@ -372,7 +567,13 @@ export default function ScriptList({
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
-                  {type === "all" ? "All" : type === "admin" ? "Admin" : type === "closer" ? "Closer" : "Opener"}
+                  {type === "all"
+                    ? "All"
+                    : type === "admin"
+                      ? "Admin"
+                      : type === "closer"
+                        ? "Closer"
+                        : "Opener"}
                 </button>
               ))}
             </div>
@@ -405,7 +606,8 @@ export default function ScriptList({
               : "Get started by creating your first script"}
           </p>
 
-          {(searchQuery || (userRole === "admin" && selectedType !== "all")) && (
+          {(searchQuery ||
+            (userRole === "admin" && selectedType !== "all")) && (
             <button
               onClick={() => {
                 setSearchQuery("");
@@ -421,140 +623,164 @@ export default function ScriptList({
         <>
           <div className="grid gap-3 sm:gap-4">
             {paginatedScripts.map((script) => (
-            <div
-              key={script._id}
-              className="group relative bg-white rounded-lg sm:rounded-xl border border-gray-200 hover:border-indigo-200 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300"
-            >
-              <div className="p-4 sm:p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-indigo-600 transition truncate max-w-[200px] sm:max-w-full">
-                        {script.title}
-                      </h3>
-                      <span
-                        className={`px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium rounded-full border ${getTypeColor(
-                          script.normalizedType
-                        )}`}
-                      >
-                        {script.normalizedType}
-                      </span>
-
-                      <span
-                        className={`px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium rounded-full border ${getAudioStatusColor(
-                          script.audioStatus
-                        )}`}
-                      >
-                        audio: {script.audioStatus || "pending"}
-                      </span>
-                    </div>
-
-                    <p className="text-gray-600 text-xs sm:text-sm leading-relaxed mb-3 line-clamp-2">
-                      {script.content}
-                    </p>
-
-                    {script.audioStatus === "failed" && script.audioError && (
-                      <div className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                        {script.audioError}
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-gray-500">
-                      {script.author && (
-                        <div className="flex items-center gap-1">
-                          <FiUser className="w-3 h-3" />
-                          <span className="truncate max-w-[100px] sm:max-w-full">
-                            {script.author.name || script.author.email}
-                          </span>
-                        </div>
-                      )}
-
-                      {script.createdAt && (
-                        <div className="flex items-center gap-1">
-                          <FiClock className="w-3 h-3" />
-                          <span>{getTimeAgo(script.createdAt)}</span>
-                        </div>
-                      )}
-
-                      {script.audioUrl && (
-                        <div className="flex items-center gap-1 text-green-600">
-                          <FiVolume2 className="w-3 h-3" />
-                          <span>MP3 ready</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 sm:gap-2 ml-2">
-                    {script.audioStatus === "ready" && script.audioUrl && (
-                      <button
-                        onClick={() => handlePlayAudio(script)}
-                        className="p-1.5 sm:p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                        title={playingId === script._id ? "Stop audio" : "Play audio"}
-                      >
-                        {playingId === script._id ? (
-                          <FiPause className="w-4 h-4" />
-                        ) : (
-                          <FiPlay className="w-4 h-4" />
-                        )}
-                      </button>
-                    )}
-
-                    {script.canEdit && (
-                      <button
-                        onClick={() => handleRegenerateAudio(script)}
-                        disabled={regenerating === script._id}
-                        className="p-1.5 sm:p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50"
-                        title="Regenerate Audio"
-                      >
-                        <FiRefreshCw className={`w-4 h-4 ${regenerating === script._id ? "animate-spin" : ""}`} />
-                      </button>
-                    )}
-
-                    {script.canEdit && (
-                      <button
-                        onClick={() => onEditScript(script)}
-                        className="p-1.5 sm:p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                        title="Edit script"
-                      >
-                        <FiEdit2 className="w-4 h-4" />
-                      </button>
-                    )}
-
-                    {script.canDelete && (
-                      deleteConfirm === script._id ? (
-                        <div className="flex items-center gap-1 bg-red-50 rounded-lg p-1">
-                          <button
-                            onClick={() => handleDelete(script._id)}
-                            className="p-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
-                            title="Confirm delete"
-                          >
-                            <FiCheckCircle className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirm(null)}
-                            className="p-1 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-200 transition"
-                            title="Cancel"
-                          >
-                            <FiXCircle className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setDeleteConfirm(script._id)}
-                          className="p-1.5 sm:p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          title="Delete script"
+              <div
+                key={script._id}
+                onClick={() => setViewScript(script)}
+                className="group relative bg-white rounded-lg sm:rounded-xl border border-gray-200 hover:border-indigo-200 hover:shadow-lg sm:hover:shadow-xl transition-all duration-300 cursor-pointer"
+              >
+                <div className="p-4 sm:p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-indigo-600 transition truncate max-w-[200px] sm:max-w-full">
+                          {script.title}
+                        </h3>
+                        <span
+                          className={`px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium rounded-full border ${getTypeColor(
+                            script.normalizedType,
+                          )}`}
                         >
-                          <FiTrash2 className="w-4 h-4" />
+                          {script.normalizedType}
+                        </span>
+
+                        <span
+                          className={`px-2 py-0.5 sm:px-3 sm:py-1 text-xs font-medium rounded-full border ${getAudioStatusColor(
+                            script.audioStatus,
+                          )}`}
+                        >
+                          audio: {script.audioStatus || "pending"}
+                        </span>
+                      </div>
+
+                      <p className="text-gray-600 text-xs sm:text-sm leading-relaxed mb-3 line-clamp-2">
+                        {script.content}
+                      </p>
+
+                      {script.audioStatus === "failed" && script.audioError && (
+                        <div className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                          {script.audioError}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-gray-500">
+                        {script.author && (
+                          <div className="flex items-center gap-1">
+                            <FiUser className="w-3 h-3" />
+                            <span className="truncate max-w-[100px] sm:max-w-full">
+                              {script.author.name || script.author.email}
+                            </span>
+                          </div>
+                        )}
+
+                        {script.createdAt && (
+                          <div className="flex items-center gap-1">
+                            <FiClock className="w-3 h-3" />
+                            <span>{getTimeAgo(script.createdAt)}</span>
+                          </div>
+                        )}
+
+                        {script.audioUrl && (
+                          <div className="flex items-center gap-1 text-green-600">
+                            <FiVolume2 className="w-3 h-3" />
+                            <span>MP3 ready</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 sm:gap-2 ml-2">
+                      {script.audioStatus === "ready" && script.audioUrl && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlayAudio(script);
+                          }}
+                          className="p-1.5 sm:p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                          title={
+                            playingId === script._id
+                              ? "Stop audio"
+                              : "Play audio"
+                          }
+                        >
+                          {playingId === script._id ? (
+                            <FiPause className="w-4 h-4" />
+                          ) : (
+                            <FiPlay className="w-4 h-4" />
+                          )}
                         </button>
-                      )
-                    )}
+                      )}
+
+                      {script.canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRegenerateAudio(script);
+                          }}
+                          disabled={regenerating === script._id}
+                          className="p-1.5 sm:p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50"
+                          title="Regenerate Audio"
+                        >
+                          <FiRefreshCw
+                            className={`w-4 h-4 ${regenerating === script._id ? "animate-spin" : ""}`}
+                          />
+                        </button>
+                      )}
+
+                      {script.canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditScript(script);
+                          }}
+                          className="p-1.5 sm:p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                          title="Edit script"
+                        >
+                          <FiEdit2 className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {script.canDelete &&
+                        (deleteConfirm === script._id ? (
+                          <div className="flex items-center gap-1 bg-red-50 rounded-lg p-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(script._id);
+                              }}
+                              className="p-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
+                              title="Confirm delete"
+                            >
+                              <FiCheckCircle className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteConfirm(null);
+                              }}
+                              className="p-1 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-200 transition"
+                              title="Cancel"
+                            >
+                              <FiX className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteConfirm(script._id);
+                            }}
+                            className="p-1.5 sm:p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Delete script"
+                          >
+                            <FiTrash2 className="w-4 h-4" />
+                          </button>
+                        ))}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-b-lg sm:rounded-b-xl"></div>
-            </div>
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-b-lg sm:rounded-b-xl"></div>
+              </div>
             ))}
           </div>
 
@@ -563,10 +789,13 @@ export default function ScriptList({
             totalPages={totalPages}
             totalItems={totalItems}
             itemsPerPage={itemsPerPage}
-            onItemsPerPageChange={(size) => { setItemsPerPage(size); setCurrentPage(1); }}
+            onItemsPerPageChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
             onFirst={() => setCurrentPage(1)}
-            onPrev={() => setCurrentPage(p => p - 1)}
-            onNext={() => setCurrentPage(p => p + 1)}
+            onPrev={() => setCurrentPage((p) => p - 1)}
+            onNext={() => setCurrentPage((p) => p + 1)}
             onLast={() => setCurrentPage(totalPages)}
           />
         </>
