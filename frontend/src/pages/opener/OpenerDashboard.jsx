@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Routes, Route } from "react-router-dom";
 import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
 import Leads from "./Leads";
+import VoiceProfile from "../../components/shared/VoiceProfile";
 import {
   FiBook,
   FiLogOut,
@@ -13,6 +14,7 @@ import {
   FiSearch,
   FiRefreshCw, 
   FiUserCheck,
+  FiMic,
 } from "react-icons/fi";
 
 function ScriptsView({ searchQuery, onEditScript, refreshKey }) {
@@ -85,8 +87,9 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
   const userInitial = userName.charAt(0).toUpperCase();
 
   const navItems = [
-    { id: "leads", label: "My Leads", icon: FiUserCheck },
-    { id: "scripts", label: "Scripts", icon: FiBook },
+    { id: "leads",          label: "My Leads",      icon: FiUserCheck },
+    { id: "scripts",        label: "Scripts",       icon: FiBook },
+    { id: "voice-profiles", label: "Voice Profile", icon: FiMic },
   ];
 
   // Get current view from URL path
@@ -94,17 +97,20 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
     const path = location.pathname;
     if (path.includes("/opener/scripts")) return "scripts";
     if (path.includes("/opener/leads")) return "leads";
-    return initialView; // Fallback to initialView
+    if (path.includes("/opener/voice-profiles")) return "voice-profiles";
+    return initialView;
   };
 
   const currentView = getCurrentView();
 
   const pageTitle = 
-    currentView === "scripts" ? "Script Management" : 
+    currentView === "scripts"        ? "Script Management" :
+    currentView === "voice-profiles" ? "Voice Profile" :
     "My Leads";
 
   const pageSubtitle = 
-    currentView === "scripts" ? "Create, edit, and manage your automation scripts" :
+    currentView === "scripts"        ? "Create, edit, and manage your automation scripts" :
+    currentView === "voice-profiles" ? "Set up and manage your cloned voice" :
     "View and manage leads assigned to you";
 
   return (
@@ -361,6 +367,7 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
           )} 
 
           {currentView === "leads" && <Leads />}
+          {currentView === "voice-profiles" && <VoiceProfile />}
         </main>
       </div>
 

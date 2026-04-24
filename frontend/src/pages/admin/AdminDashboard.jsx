@@ -6,6 +6,7 @@ import ScriptForm from "../../components/shared/ScriptForm";
 import AgentsList from "./AgentsList";
 import AddAgent from "./AddAgent";
 import Contacts from "./Contacts";
+import AdminVoiceProfiles from "./AdminVoiceProfiles";
 import {
   FiBook,
   FiClock,
@@ -19,6 +20,7 @@ import {
   FiVolume2,
   FiPlusCircle,
   FiUserPlus,
+  FiMic,
 } from "react-icons/fi";
 
 export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
@@ -28,6 +30,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
     if (path.includes("/admin/addagents")) return "addagents";
     if (path.includes("/admin/logs")) return "logs";
     if (path.includes("/admin/contacts")) return "contacts";
+    if (path.includes("/admin/voice-profiles")) return "voice-profiles";
     return initialView;
   });
 
@@ -99,29 +102,26 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
   const userInitial = userName.charAt(0).toUpperCase();
 
   const navItems = [
-    { id: "scripts", label: "Scripts", icon: FiBook },
-    { id: "addagents", label: "Add Agents", icon: FiPlusCircle },
-    { id: "logs", label: "Logs", icon: FiClock },
-    { id: "contacts", label: "Contacts", icon: FiUserPlus },
+    { id: "scripts",        label: "Scripts",        icon: FiBook },
+    { id: "addagents",      label: "Add Agents",     icon: FiPlusCircle },
+    { id: "logs",           label: "Logs",           icon: FiClock },
+    { id: "contacts",       label: "Contacts",       icon: FiUserPlus },
+    { id: "voice-profiles", label: "Voice Profiles", icon: FiMic },
   ];
 
   const pageTitle =
-    view === "scripts"
-      ? "Script Management"
-      : view === "logs"
-        ? "Activity Logs"
-        : view === "addagents"
-          ? "Add Agents" 
-            : "Contacts";
+    view === "scripts"        ? "Script Management"
+    : view === "logs"         ? "Activity Logs"
+    : view === "addagents"    ? "Add Agents"
+    : view === "voice-profiles" ? "Voice Profiles"
+    : "Contacts";
 
   const pageSubtitle =
-    view === "scripts"
-      ? "Create, edit, and manage your automation scripts"
-      : view === "logs"
-        ? "Monitor and analyze system activity"
-        : view === "addagents"
-          ? "Manage and add agents to the system"
-          : "View and manage all contacts";
+    view === "scripts"          ? "Create, edit, and manage your automation scripts"
+    : view === "logs"           ? "Monitor and analyze system activity"
+    : view === "addagents"      ? "Manage and add agents to the system"
+    : view === "voice-profiles" ? "Clone and manage agent voice profiles"
+    : "View and manage all contacts";
 
   return (
     <div
@@ -368,6 +368,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
               />
             )}
             {view === "contacts" && <Contacts />}
+            {view === "voice-profiles" && <AdminVoiceProfiles />}
           </div>
         </main>
       </div>

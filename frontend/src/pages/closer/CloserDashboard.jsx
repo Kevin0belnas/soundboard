@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
 import Leads from "./Leads";
+import VoiceProfile from "../../components/shared/VoiceProfile";
 import {
   FiBook,
+  FiMic,
   FiLogOut,
   FiBell,
   FiMenu,
@@ -12,15 +14,15 @@ import {
   FiChevronRight,
   FiSearch,
   FiRefreshCw,
+  FiCheckSquare,
 } from "react-icons/fi";
 
 export default function CloserDashboard({ onLogout, initialView = "leads" }) {
   const [view, setView] = useState(() => {
     const path = window.location.pathname;
-    if (path.includes("/closer/scripts")) return "scripts";
-    if (path.includes("/closer/voice-soundboard")) return "voice-soundboard";
+    if (path.includes("/closer/scripts")) return "scripts"; 
     if (path.includes("/closer/leads")) return "leads";
-
+    if (path.includes("/closer/voice-profiles")) return "voice-profiles";
     return initialView;
   });
 
@@ -74,8 +76,9 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
   const userInitial = userName.charAt(0).toUpperCase();
 
   const navItems = [
-    { id: "leads", label: "Leads", icon: FiBook },
+    { id: "leads", label: "Leads", icon: FiCheckSquare },
     { id: "scripts", label: "Scripts", icon: FiBook },
+    { id: "voice-profiles", label: "Voice Profiles", icon: FiMic },
   ];
 
   const pageTitle =
@@ -83,6 +86,8 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
       ? "Script Management"
       : view === "logs"
         ? "Activity Logs"
+        : view === "voice-profiles"
+        ? "Voice Profiles"
         : "Lead Management";
 
   const pageSubtitle =
@@ -90,6 +95,8 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
       ? "Create, edit, and manage your automation scripts"
       : view === "logs"
         ? "Monitor and analyze system activity"
+        : view === "voice-profiles"
+        ? "Manage your voice profiles and settings"
         : "Manage your leads effectively";
 
   return (
@@ -341,8 +348,9 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
                   aria-label={`Search ${view}`}
                 />
               </div>
-            )}
+            )}  
           </div>
+
           {view === "scripts" && (
             <div className="-mt-4 mx-4 sm:mx-6 lg:mx-8 mb-4 sm:mb-6 lg:mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
               <ScriptList
@@ -352,7 +360,10 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
               />
             </div>
           )}
-          {view === "leads" && <Leads />}s
+
+          {view === "leads" && <Leads />}
+
+          {view === "voice-profiles" && <VoiceProfile />}
         </main>
       </div>
 

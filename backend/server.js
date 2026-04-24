@@ -9,9 +9,9 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const { testConnection } = require("./config/mysqldb"); // Import your MySQL config
-const ttsRoutes = require("./routes/tts");
-const User = require('./models/User'); // Add this line
+const { testConnection } = require("./config/mysqldb");  
+const User = require('./models/User');  
+const ttsService = require('./services/ttsService'); 
 
 const app = express();
 
@@ -37,7 +37,6 @@ async function startServer() {
     console.log("ENV loaded MONGO_URI?", Boolean(process.env.MONGO_URI));
     console.log("MONGO_URI:", process.env.MONGO_URI ? maskMongoUri(process.env.MONGO_URI) : "(missing)");
     
-    // Log MySQL config (without showing password)
     console.log("MySQL Aiven Config:", {
       host: process.env.DB_HOST,
       port: process.env.DB_PORT,
@@ -69,17 +68,19 @@ async function startServer() {
     app.use("/api/auth", require("./routes/auth"));
     app.use("/api/scripts", require("./routes/scripts"));
     app.use("/api/logs", require("./routes/logs"));
-    app.use("/api/tts", ttsRoutes);
+    app.use("/api/tts", require("./routes/tts"));
     app.use("/api/users",require("./routes/users"));
     app.use("/audio", express.static(path.join(__dirname, "uploads", "audio")));
     app.use("/temp", express.static(path.join(__dirname, "uploads", "temp")));
     app.use("/api/contacts", require("./routes/contacts")); // New contacts routes
     app.use("/api/asterisk", require("./routes/asterisk"));
+    app.use("/api/voices", require("./routes/voices"));
+    app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Connect MongoDB
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.error(err));
+    // Connect MongoDB
+    mongoose.connect(process.env.MONGO_URI)
+      .then(() => console.log("MongoDB connected"))
+      .catch((err) => console.error(err));
 
     // Health check
     app.get("/health", async (req, res) => {

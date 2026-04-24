@@ -27,7 +27,42 @@ const userSchema = new mongoose.Schema({
   },
   lastLogin: { 
     type: Date 
-  }
+  },
+  voiceStatus: {
+    type: String,
+    enum: ["none", "pending_review", "cloning", "cloned", "rejected", "failed"],
+    default: "none",
+  },
+  voiceName: {
+    type: String,
+    default: "",
+  },
+  elevenlabsVoiceId: {
+    type: String,
+    default: "",
+  },
+  voiceError: {
+    type: String,
+    default: "",
+  },
+  voiceSampleFiles: [
+    {
+      path: {
+        type: String,
+      },
+      originalName: {
+        type: String,
+      },
+      uploadedAt: {
+        type: Date,
+        default: Date.now
+      },
+    },
+  ],
+  voiceSampleUrl: {
+    type: String,
+    default: "",
+  },
 });
 
 // Method to compare password (optional but useful)

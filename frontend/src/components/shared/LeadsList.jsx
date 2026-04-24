@@ -773,7 +773,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-white p-6 rounded-lg shadow">
       {notification.show && (
         <div
           className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${
@@ -931,11 +931,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                   ) : scripts.length === 0 ? (
                     <div className="text-sm text-gray-400 text-center py-8">No scripts</div>
                   ) : (
-                    scripts.map((script) => {
-                      // activeSectionTitle = null;
-                      // if (selectedScript?._id === script._id && activeSection) {
-                      //   activeSectionTitle = activeSection.title;
-                      // }
+                    scripts.map((script) => { 
                       const isSelected = selectedScript?._id === script._id;
                       return (
                         <button

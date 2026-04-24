@@ -294,18 +294,18 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
 // ---------------- GENERATE TEMPORARY PERSONALIZED AUDIO ----------------
 router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
   try {
-    const { sectionText, scriptId } = req.body;
+    const { sectionText, scriptId, voiceId } = req.body;
 
     console.log('scriptId:', scriptId);
     console.log("Received request to generate temporary audio with sectionText:", sectionText);
-        console.log('req.body:', req.body);
+    console.log('req.body:', req.body);
 
 
     if (!sectionText) {
       return res.status(400).json({ error: "SectionText is required" });
     }
 
-    const result = await generateTempAudio(sectionText, scriptId || "audio");
+    const result = await generateTempAudio(sectionText, scriptId || "audio", voiceId || null);
     console.log('generateTempAudio result:', result);
 
     res.json({

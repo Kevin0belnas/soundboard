@@ -134,6 +134,15 @@ function App() {
           }
         />
 
+        <Route
+          path="/admin/voice-profiles"
+          element={
+            <ProtectedRoute allowedRole="admin">
+              <AdminDashboard onLogout={handleLogout} initialView="voice-profiles" />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Opener Routes */}
         <Route
           path="/opener"
@@ -171,6 +180,15 @@ function App() {
           }
         />
 
+        <Route
+          path="/opener/voice-profiles"
+          element={
+            <ProtectedRoute allowedRole="opener">
+              <OpenerDashboard onLogout={handleLogout} initialView="voice-profiles" />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Closer Routes */}
         <Route
           path="/closer"
@@ -204,6 +222,15 @@ function App() {
           element={
             <ProtectedRoute allowedRole="closer">
               <CloserDashboard onLogout={handleLogout} initialView="leads" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/closer/voice-profiles"
+          element={
+            <ProtectedRoute allowedRole="closer">
+              <CloserDashboard onLogout={handleLogout} initialView="voice-profiles" />
             </ProtectedRoute>
           }
         />

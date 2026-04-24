@@ -423,7 +423,7 @@ export default function ScriptList({
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
           onClick={() => {
             setViewScript(null);
-            setCopyTitle("");
+            setCopyTitle("");``
           }}
         >
           <div
@@ -503,7 +503,7 @@ export default function ScriptList({
       {/* Header */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-          <div>
+          <div> 
             <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
               Script Library
             </h2>

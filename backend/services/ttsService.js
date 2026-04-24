@@ -198,10 +198,9 @@ async function generateAsteriskTTS(text, fileBaseName) {
 const AUDIO_DIR = path.join(__dirname, "..", "uploads", "audio");
 const TEMP_DIR = path.join(__dirname, "..", "uploads", "temp");
 
-async function generateTempAudio(text, fileBaseName) {
+async function generateTempAudio(text, fileBaseName, customVoiceId = null) {
   const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
-  const voiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
-
+  const voiceId = (customVoiceId || process.env.ELEVENLABS_VOICE_ID || "").trim();
   if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
   if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
   if (!text || !String(text).trim()) throw new Error("TTS text is required");
