@@ -34,7 +34,12 @@ const asteriskDeviceSchema = new mongoose.Schema(
       default: true,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    collection: "asteriskdevices",
+  }
 );
 
-module.exports = mongoose.model("AsteriskDevice", asteriskDeviceSchema);
+module.exports =
+  mongoose.models.AsteriskDevice ||
+  mongoose.model("AsteriskDevice", asteriskDeviceSchema);

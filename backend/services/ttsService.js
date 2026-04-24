@@ -1,9 +1,11 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const axios = require("axios");
 const util = require("util");
 const { execFile } = require("child_process");
 const SftpClient = require("ssh2-sftp-client");
+const TtsCache = require("../models/TtsCache");
 
 const execFileAsync = util.promisify(execFile);
 
@@ -17,6 +19,32 @@ function sanitizeFileBase(fileBase = "tts") {
       .replace(/^_+|_+$/g, "")
       .slice(0, 120) || "tts"
   );
+}
+
+function buildSettingsHash({ modelId, voiceSettings }) {
+  return crypto
+    .createHash("sha256")
+    .update(
+      JSON.stringify({
+        modelId,
+        voiceSettings,
+      })
+    )
+    .digest("hex");
+}
+
+function buildTtsCacheKey({ text, voiceId, modelId, voiceSettings }) {
+  return crypto
+    .createHash("sha256")
+    .update(
+      JSON.stringify({
+        text: String(text || "").trim(),
+        voiceId,
+        modelId,
+        voiceSettings,
+      })
+    )
+    .digest("hex");
 }
 
 async function uploadToAsteriskServer(localPath, remoteFileName) {
@@ -46,10 +74,6 @@ async function uploadToAsteriskServer(localPath, remoteFileName) {
   const remotePath = `${remoteDir.replace(/\/+$/, "")}/${safeRemoteFileName}`;
 
   try {
-    console.log("Uploading WAV to Asterisk server...");
-    console.log("localPath:", localPath);
-    console.log("remotePath:", remotePath);
-
     await sftp.connect({
       host,
       port,
@@ -63,8 +87,6 @@ async function uploadToAsteriskServer(localPath, remoteFileName) {
     }
 
     await sftp.put(localPath, remotePath);
-    console.log("Upload complete:", remotePath);
-
     return remotePath;
   } catch (error) {
     throw new Error(`SFTP upload failed: ${error.message}`);
@@ -75,111 +97,56 @@ async function uploadToAsteriskServer(localPath, remoteFileName) {
   }
 }
 
-async function generateAsteriskTTS(text, fileBaseName) {
-  const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
-  const voiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
-
+async function generateFreshTTS({
+  text,
+  fileBaseName,
+  apiKey,
+  voiceId,
+  modelId,
+  voiceSettings,
+}) {
   const localTempDir = path.join(__dirname, "..", "uploads", "tts");
   const ffmpegPath =
     (process.env.FFMPEG_PATH || "").trim() ||
     (process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
 
-  if (!apiKey) {
-    throw new Error("Missing ELEVENLABS_API_KEY");
-  }
-
-  if (!voiceId) {
-    throw new Error("Missing ELEVENLABS_VOICE_ID");
-  }
-
-  if (!text || !String(text).trim()) {
-    throw new Error("TTS text is required");
-  }
-
-  const safeFileBase = sanitizeFileBase(fileBaseName || "tts");
-
   fs.mkdirSync(localTempDir, { recursive: true });
 
+  const safeFileBase = sanitizeFileBase(fileBaseName || "tts");
   const mp3Path = path.join(localTempDir, `${safeFileBase}.mp3`);
   const wavPath = path.join(localTempDir, `${safeFileBase}.wav`);
 
-  console.log(
-    "ElevenLabs key loaded:",
-    apiKey ? `yes (${apiKey.length} chars)` : "no"
-  );
-  console.log("ElevenLabs voice loaded:", voiceId || "missing");
-  console.log("Using ffmpeg path:", ffmpegPath);
-  console.log("Safe TTS file base:", safeFileBase);
+  const response = await axios({
+    method: "post",
+    url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    headers: {
+      "xi-api-key": apiKey,
+      "Content-Type": "application/json",
+      Accept: "audio/mpeg",
+    },
+    responseType: "arraybuffer",
+    timeout: 60000,
+    data: {
+      text: String(text),
+      model_id: modelId,
+      voice_settings: voiceSettings,
+    },
+  });
 
-  try {
-    const response = await axios({
-      method: "post",
-      url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-        Accept: "audio/mpeg",
-      },
-      responseType: "arraybuffer",
-      timeout: 60000,
-      data: {
-        text: String(text),
-        model_id: "eleven_multilingual_v2",
-        voice_settings: {
-          stability: 0.4,
-          similarity_boost: 0.8,
-        },
-      },
-    });
+  fs.writeFileSync(mp3Path, response.data);
 
-    fs.writeFileSync(mp3Path, response.data);
-  } catch (error) {
-    const status = error.response?.status;
-    const responseData = error.response?.data;
-
-    if (status === 401) {
-      throw new Error(
-        "ElevenLabs 401 Unauthorized. Check ELEVENLABS_API_KEY and restart the backend."
-      );
-    }
-
-    if (status === 400) {
-      throw new Error(
-        `ElevenLabs 400 Bad Request. Check ELEVENLABS_VOICE_ID or request payload. ${
-          typeof responseData === "string"
-            ? responseData
-            : JSON.stringify(responseData || {})
-        }`
-      );
-    }
-
-    throw new Error(
-      `ElevenLabs request failed${status ? ` (${status})` : ""}: ${
-        typeof responseData === "string"
-          ? responseData
-          : JSON.stringify(responseData || error.message)
-      }`
-    );
-  }
-
-  try {
-    await execFileAsync(ffmpegPath, [
-      "-y",
-      "-i",
-      mp3Path,
-      "-ar",
-      "8000",
-      "-ac",
-      "1",
-      "-c:a",
-      "pcm_s16le",
-      wavPath,
-    ]);
-  } catch (error) {
-    throw new Error(
-      `FFmpeg conversion failed: ${error.message || "Unknown FFmpeg error"}`
-    );
-  }
+  await execFileAsync(ffmpegPath, [
+    "-y",
+    "-i",
+    mp3Path,
+    "-ar",
+    "8000",
+    "-ac",
+    "1",
+    "-c:a",
+    "pcm_s16le",
+    wavPath,
+  ]);
 
   const remoteFileName = `${safeFileBase}.wav`;
   const remotePath = await uploadToAsteriskServer(wavPath, remoteFileName);
@@ -195,113 +162,97 @@ async function generateAsteriskTTS(text, fileBaseName) {
   };
 }
 
-const AUDIO_DIR = path.join(__dirname, "..", "uploads", "audio");
-const TEMP_DIR = path.join(__dirname, "..", "uploads", "temp");
-
-async function generateTempAudio(text, fileBaseName) {
+async function generateAsteriskTTS(text, fileBaseName, meta = {}) {
   const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
   const voiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
+  const modelId = "eleven_multilingual_v2";
+  const voiceSettings = {
+    stability: 0.4,
+    similarity_boost: 0.8,
+  };
 
-  if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
-  if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
-  if (!text || !String(text).trim()) throw new Error("TTS text is required");
-
-  fs.mkdirSync(TEMP_DIR, { recursive: true });
-
-  const fileName = `${fileBaseName}_${Date.now()}.mp3`;
-  const filePath = path.join(TEMP_DIR, fileName);
-
-  let response;
-  try {
-    response = await axios({
-      method: "post",
-      url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-        Accept: "audio/mpeg",
-      }, 
-      responseType: "arraybuffer",
-      timeout: 60000,
-      data: {
-        text: String(text),
-        model_id: "eleven_multilingual_v2",
-        voice_settings: { stability: 0.4, similarity_boost: 0.8 },
-      },
-    });
-  } catch (err) {
-    const status = err.response?.status;
-    let detail = "";
-    if (err.response?.data) {
-      try {
-        detail = Buffer.isBuffer(err.response.data)
-          ? err.response.data.toString("utf8")
-          : JSON.stringify(err.response.data);
-      } catch (_) {
-        detail = String(err.response.data);
-      }
-    }
-    console.error(`ElevenLabs TTS error (${status}):`, detail);
-    throw new Error(`ElevenLabs error (${status}): ${detail || err.message}`);
+  if (!apiKey) {
+    throw new Error("Missing ELEVENLABS_API_KEY");
   }
 
-  fs.writeFileSync(filePath, response.data);
+  if (!voiceId) {
+    throw new Error("Missing ELEVENLABS_VOICE_ID");
+  }
+
+  if (!text || !String(text).trim()) {
+    throw new Error("TTS text is required");
+  }
+
+  const cleanText = String(text).trim();
+
+  const cacheKey = buildTtsCacheKey({
+    text: cleanText,
+    voiceId,
+    modelId,
+    voiceSettings,
+  });
+
+  const settingsHash = buildSettingsHash({
+    modelId,
+    voiceSettings,
+  });
+
+  const existing = await TtsCache.findOne({ cacheKey }).lean();
+
+  if (existing) {
+    return {
+      playbackFile: existing.playbackFile,
+      wavPath: existing.wavPath,
+      remotePath: existing.remotePath,
+      fromCache: true,
+    };
+  }
+
+  const fresh = await generateFreshTTS({
+    text: cleanText,
+    fileBaseName,
+    apiKey,
+    voiceId,
+    modelId,
+    voiceSettings,
+  });
+
+  try {
+    await TtsCache.create({
+      cacheKey,
+      text: cleanText,
+      voiceId,
+      modelId,
+      settingsHash,
+      playbackFile: fresh.playbackFile,
+      wavPath: fresh.wavPath || "",
+      remotePath: fresh.remotePath || "",
+      sourceType: meta.sourceType || "other",
+      sourceId: meta.sourceId || "",
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      const cached = await TtsCache.findOne({ cacheKey }).lean();
+      if (cached) {
+        return {
+          playbackFile: cached.playbackFile,
+          wavPath: cached.wavPath,
+          remotePath: cached.remotePath,
+          fromCache: true,
+        };
+      }
+    }
+    throw error;
+  }
 
   return {
-    audioUrl: `/temp/${fileName}`,
-    filePath,
+    ...fresh,
+    fromCache: false,
   };
 }
 
-async function saveScriptAudioFile(scriptDoc, oldAudioFileName = "") {
-  const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
-  const voiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
-
-  if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
-  if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
-
-  fs.mkdirSync(AUDIO_DIR, { recursive: true });
-
-  if (oldAudioFileName) {
-    const oldPath = path.join(AUDIO_DIR, oldAudioFileName);
-    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-  }
-
-  const fileName = `script_${scriptDoc._id}_${Date.now()}.mp3`;
-  const filePath = path.join(AUDIO_DIR, fileName);
-
-  const response = await axios({
-    method: "post",
-    url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-    headers: {
-      "xi-api-key": apiKey,
-      "Content-Type": "application/json",
-      Accept: "audio/mpeg",
-    },
-    responseType: "arraybuffer",
-    timeout: 60000,
-    data: {
-      text: String(scriptDoc.content),
-      model_id: "eleven_multilingual_v2",
-      voice_settings: { stability: 0.4, similarity_boost: 0.8 },
-    },
-  });
-
-  fs.writeFileSync(filePath, response.data);
-
-  scriptDoc.audioUrl = `/uploads/audio/${fileName}`;
-  scriptDoc.audioFileName = fileName;
-  scriptDoc.audioStatus = "ready";
-  scriptDoc.audioError = "";
-  await scriptDoc.save();
-
-  return { audioUrl: scriptDoc.audioUrl, fileName };
-}
-
 module.exports = {
-  AUDIO_DIR,
   generateAsteriskTTS,
-  generateTempAudio,
   sanitizeFileBase,
-  saveScriptAudioFile,
+  buildTtsCacheKey,
 };
