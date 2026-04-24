@@ -1,4 +1,93 @@
 const net = require("net");
+const AmiClient = require("asterisk-ami-client");
+
+let eventClient = null;
+let eventClientPromise = null;
+
+async function getEventClient() {
+  if (eventClient) return eventClient;
+  if (eventClientPromise) return eventClientPromise;
+
+  const host = process.env.ASTERISK_HOST || "127.0.0.1";
+  const port = Number(process.env.ASTERISK_AMI_PORT || 5038);
+  const username = process.env.ASTERISK_AMI_USER;
+  const secret = process.env.ASTERISK_AMI_PASSWORD;
+
+  if (!username || !secret) {
+    throw new Error("Missing ASTERISK_AMI_USER or ASTERISK_AMI_PASSWORD");
+  }
+
+  eventClientPromise = (async () => {
+    const client = new AmiClient({
+      reconnect: true,
+      keepAlive: true,
+    });
+
+    client.on("disconnect", () => {
+      console.warn("[AMI EVENT] disconnected");
+    });
+
+    client.on("reconnection", () => {
+      console.log("[AMI EVENT] reconnecting...");
+    });
+
+    client.on("internalError", (err) => {
+      console.error("[AMI EVENT] internal error:", err);
+    });
+
+    await client.connect(username, secret, { host, port });
+    eventClient = client;
+    console.log(`[AMI EVENT] connected to ${host}:${port}`);
+    return client;
+  })();
+
+  try {
+    return await eventClientPromise;
+  } finally {
+    eventClientPromise = null;
+  }
+}
+
+async function waitForLeadAnswered({ callId, timeoutMs = 45000 }) {
+  const client = await getEventClient();
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      client.removeListener("event", handler);
+    };
+
+    const done = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn(value);
+    };
+
+    const timer = setTimeout(() => {
+      done(reject, new Error("Timed out waiting for lead answer"));
+    }, timeoutMs);
+
+    const handler = (event) => {
+      const eventName = event?.Event || event?.event;
+      const userEvent = event?.UserEvent || event?.userevent;
+      const eventCallId = event?.CallId || event?.callid;
+
+      if (
+        String(eventName).toLowerCase() === "userevent" &&
+        String(userEvent) === "CRMLeadAnswered" &&
+        String(eventCallId) === String(callId)
+      ) {
+        console.log("[AMI EVENT] Lead answered event received:", event);
+        done(resolve, event);
+      }
+    };
+
+    client.on("event", handler);
+  });
+}
 
 function amiLoginAndSend(actionPayload, options = {}) {
   const host = process.env.ASTERISK_HOST || "127.0.0.1";
@@ -46,8 +135,6 @@ function amiLoginAndSend(actionPayload, options = {}) {
     socket.setTimeout(timeoutMs);
 
     socket.connect(port, host, () => {
-      console.log(`AMI connecting to ${host}:${port}`);
-
       const loginPayload =
         `Action: Login\r\n` +
         `Username: ${username}\r\n` +
@@ -66,7 +153,6 @@ function amiLoginAndSend(actionPayload, options = {}) {
         }
 
         if (buffer.includes("Authentication accepted")) {
-          console.log("AMI login accepted");
           stage = "waiting_action";
           buffer = "";
           socket.write(actionPayload);
@@ -77,28 +163,17 @@ function amiLoginAndSend(actionPayload, options = {}) {
       if (stage === "waiting_action") {
         if (buffer.includes("\r\n\r\n")) {
           const actionResponse = buffer;
-          console.log("AMI action response:\n", actionResponse);
-
           const logoffPayload = `Action: Logoff\r\n\r\n`;
           socket.write(logoffPayload);
-
           return done(actionResponse);
         }
       }
     });
 
-    socket.on("timeout", () => {
-      fail(new Error("AMI socket timeout"));
-    });
-
-    socket.on("error", (err) => {
-      fail(err);
-    });
-
+    socket.on("timeout", () => fail(new Error("AMI socket timeout")));
+    socket.on("error", (err) => fail(err));
     socket.on("close", () => {
-      if (!finished) {
-        fail(new Error("AMI socket closed before completion"));
-      }
+      if (!finished) fail(new Error("AMI socket closed before completion"));
     });
   });
 }
@@ -164,14 +239,6 @@ async function originateConferenceCall({
     ? `${callerIdName} <${agentExtension}>`
     : `CRM <${agentExtension}>`;
 
-  console.log("Starting conference originate with:");
-  console.log("callId:", callId);
-  console.log("confId:", confId);
-  console.log("channel:", channel);
-  console.log("agentExtension:", agentExtension);
-  console.log("phoneNumber:", phoneNumber);
-  console.log("starterTtsFile:", starterTtsFile);
-
   return originateToContext({
     actionId: callId,
     channel,
@@ -219,13 +286,8 @@ async function originateLeadToConference({
 }
 
 async function queueTtsToConference({ callId, confId, ttsFile }) {
-  if (!confId) {
-    throw new Error("confId is required");
-  }
-
-  if (!ttsFile) {
-    throw new Error("ttsFile is required");
-  }
+  if (!confId) throw new Error("confId is required");
+  if (!ttsFile) throw new Error("ttsFile is required");
 
   return originateToContext({
     actionId: `${callId}_tts_${Date.now()}`,
@@ -249,9 +311,7 @@ async function runAmiCommand(command) {
 }
 
 async function hangupConference(confId) {
-  if (!confId) {
-    throw new Error("confId is required");
-  }
+  if (!confId) throw new Error("confId is required");
 
   const raw = await runAmiCommand(`confbridge kick ${confId} all`);
 
@@ -269,4 +329,5 @@ module.exports = {
   originateLeadToConference,
   queueTtsToConference,
   hangupConference,
+  waitForLeadAnswered,
 };

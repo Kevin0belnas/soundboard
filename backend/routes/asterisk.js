@@ -1,5 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 const AsteriskDevice = require("../models/AsteriskDevice");
 const { generateAsteriskTTS, sanitizeFileBase } = require("../services/ttsService");
 const {
@@ -7,6 +8,7 @@ const {
   originateLeadToConference,
   queueTtsToConference,
   hangupConference,
+  waitForLeadAnswered,
 } = require("../services/amiService");
 
 const router = express.Router();
@@ -29,13 +31,20 @@ function estimatePlaybackMs(text = "") {
   return Math.max(ms, 3000);
 }
 
-async function buildPlaybackFileFromText(text, prefix = "crm") {
+function normalizeObjectId(id) {
+  const value = String(id || "").trim();
+  if (!value) return null;
+  if (!mongoose.Types.ObjectId.isValid(value)) return null;
+  return new mongoose.Types.ObjectId(value);
+}
+
+async function buildPlaybackFileFromText(text, prefix = "crm", meta = {}) {
   const safePrefix = sanitizeFileBase(prefix || "crm");
   const fileBase = `${safePrefix}_${Date.now()}_${Math.random()
     .toString(36)
     .slice(2, 8)}`;
 
-  const ttsResult = await generateAsteriskTTS(text, fileBase);
+  const ttsResult = await generateAsteriskTTS(text, fileBase, meta);
 
   const playbackFile =
     typeof ttsResult === "string" ? ttsResult : ttsResult.playbackFile;
@@ -48,18 +57,19 @@ async function buildPlaybackFileFromText(text, prefix = "crm") {
     playbackFile,
     wavPath,
     remotePath,
+    fromCache: !!ttsResult?.fromCache,
   };
 }
 
 async function getUserAsteriskDevice(userId) {
-  const normalizedUserId = String(userId || "").trim();
+  const userObjectId = normalizeObjectId(userId);
 
-  if (!normalizedUserId) {
+  if (!userObjectId) {
     throw new Error("Valid userId is required");
   }
 
   const device = await AsteriskDevice.findOne({
-    userId: normalizedUserId,
+    userId: userObjectId,
     isActive: true,
   });
 
@@ -134,9 +144,9 @@ router.post("/map-device", async (req, res) => {
       isActive = true,
     } = req.body;
 
-    const normalizedUserId = String(userId || "").trim();
+    const userObjectId = normalizeObjectId(userId);
 
-    if (!normalizedUserId || !extension) {
+    if (!userObjectId || !extension) {
       return res.status(400).json({
         success: false,
         message: "Valid userId and extension are required",
@@ -149,9 +159,9 @@ router.post("/map-device", async (req, res) => {
     ).trim();
 
     const device = await AsteriskDevice.findOneAndUpdate(
-      { userId: normalizedUserId },
+      { userId: userObjectId },
       {
-        userId: normalizedUserId,
+        userId: userObjectId,
         extension: cleanExtension,
         sipChannel: finalSipChannel,
         didNumber: didNumber ? String(didNumber).trim() : "",
@@ -160,7 +170,7 @@ router.post("/map-device", async (req, res) => {
       },
       {
         upsert: true,
-        new: true,
+        returnDocument: "after",
         setDefaultsOnInsert: true,
       }
     );
@@ -175,22 +185,6 @@ router.post("/map-device", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to save Asterisk device",
-    });
-  }
-});
-
-router.get("/device/:userId", async (req, res) => {
-  try {
-    const device = await getUserAsteriskDevice(req.params.userId);
-
-    return res.json({
-      success: true,
-      data: device,
-    });
-  } catch (error) {
-    return res.status(404).json({
-      success: false,
-      message: error.message || "Device not found",
     });
   }
 });
@@ -224,7 +218,10 @@ router.post("/call-with-tts", async (req, res) => {
 
     const confId = `crm_${callId.replace(/[^a-zA-Z0-9_]/g, "")}`;
 
-    const starterTts = await buildPlaybackFileFromText(text, "crm_starter");
+    const starterTts = await buildPlaybackFileFromText(text, "crm_starter", {
+      sourceType: "starter",
+      sourceId: scriptId || "",
+    });
 
     await originateConferenceCall({
       callId,
@@ -273,6 +270,12 @@ router.post("/call-with-tts", async (req, res) => {
         const activeCall = activeCalls.get(callId);
         if (!activeCall || activeCall.ended) return;
 
+        // IMPORTANT: start listening BEFORE we originate the lead leg
+        const leadAnsweredPromise = waitForLeadAnswered({
+          callId,
+          timeoutMs: 45000,
+        });
+
         await originateLeadToConference({
           callId,
           confId,
@@ -282,35 +285,44 @@ router.post("/call-with-tts", async (req, res) => {
 
         activeCall.status = "dialing-lead";
 
-        setTimeout(() => {
-          const latest = activeCalls.get(callId);
-          if (!latest || latest.ended) return;
+        await leadAnsweredPromise;
 
+        const latest = activeCalls.get(callId);
+        if (!latest || latest.ended) return;
+
+        latest.status = "bridged";
+        latest.ttsBusy = false;
+        latest.currentTts = null;
+
+        processTtsQueue(callId).catch((err) => {
+          console.error("Starter queue processing error:", err);
+        });
+      } catch (err) {
+        console.error("Lead answer wait error:", err);
+
+        const latest = activeCalls.get(callId);
+        if (latest && !latest.ended) {
+          latest.status = "lead-no-answer";
+          latest.ttsQueue = [];
           latest.ttsBusy = false;
           latest.currentTts = null;
-          latest.status =
-            latest.ttsQueue.length > 0 ? "queued-tts" : "bridged";
-
-          processTtsQueue(callId).catch((err) => {
-            console.error("Starter queue processing error:", err);
-          });
-        }, 5000);
-      } catch (err) {
-        console.error("Lead originate error:", err);
+        }
       }
     }, 2500);
 
     return res.json({
       success: true,
       message:
-        "Call started using the Asterisk device linked to this account.",
+        "Call started. Starter TTS will play only after the lead answers.",
       callId,
       confId,
       starterTtsFile: starterTts.playbackFile,
       remotePath: starterTts.remotePath,
+      fromCache: starterTts.fromCache,
       agentExtension: device.extension,
       sipChannel: device.sipChannel,
       phoneNumber: cleanedPhone,
+      status: "dialing-agent",
     });
   } catch (error) {
     console.error("Asterisk TTS call error:", error);
@@ -345,7 +357,11 @@ router.post("/play-tts-in-call", async (req, res) => {
 
     const generated = await buildPlaybackFileFromText(
       text,
-      `crm_script_${safeScriptId}`
+      `crm_script_${safeScriptId}`,
+      {
+        sourceType: "subscript",
+        sourceId: scriptId || "",
+      }
     );
 
     const queueItem = {
@@ -378,54 +394,13 @@ router.post("/play-tts-in-call", async (req, res) => {
       queueLength: activeCall.ttsQueue.length,
       ttsBusy: activeCall.ttsBusy,
       playbackFile: generated.playbackFile,
+      fromCache: generated.fromCache,
     });
   } catch (error) {
     console.error("Play TTS in call error:", error);
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to play script in call",
-    });
-  }
-});
-
-router.get("/live-call/:callId", async (req, res) => {
-  try {
-    const { callId } = req.params;
-    const activeCall = activeCalls.get(callId);
-
-    if (!activeCall) {
-      return res.status(404).json({
-        success: false,
-        message: "Call not found",
-      });
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        callId: activeCall.callId,
-        confId: activeCall.confId,
-        leadId: activeCall.leadId,
-        phoneNumber: activeCall.phoneNumber,
-        agentId: activeCall.agentId,
-        agentExtension: activeCall.agentExtension,
-        sipChannel: activeCall.sipChannel,
-        status: activeCall.status,
-        ttsBusy: activeCall.ttsBusy,
-        currentTts: activeCall.currentTts,
-        queue: activeCall.ttsQueue.map((item) => ({
-          scriptId: item.scriptId,
-          title: item.title,
-          queuedAt: item.queuedAt,
-        })),
-        createdAt: activeCall.createdAt,
-      },
-    });
-  } catch (error) {
-    console.error("Get live call error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to get live call",
     });
   }
 });
