@@ -9,9 +9,9 @@ import {
   FiSearch,
   FiRefreshCw,
   FiStar,
-  FiFlag,
-  FiMessageSquare,
   FiThumbsDown,
+  FiUserCheck,
+  FiVolume2,
   FiX,
   FiSend,
   FiVolume2,
@@ -124,11 +124,18 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const [filteredLeads, setFilteredLeads] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+
   const [notification, setNotification] = useState({
     show: false,
     type: "",
     message: "",
   });
+
   const [selectedLead, setSelectedLead] = useState(null);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -153,37 +160,68 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const [callManagerId, setCallManagerId] = useState("");
   const [openerAgents, setOpenerAgents] = useState([]);
 
-  // Get current user info
-  const userId = localStorage.getItem("userId");
-  const userName = localStorage.getItem("name") || "User";
-  const userRole = localStorage.getItem("role") || "opener";
-
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [itemsPerPage, setItemsPerPage] = useState(50);
-
-  // Status filter
-  const [statusFilter, setStatusFilter] = useState("all");
-
-  // Script states
-  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
-  const [completedSections, setCompletedSections] = useState([]);
-  const [scriptSections, setScriptSections] = useState([]);
-
-  // Refs so async callbacks always see current values
+  const [playingPreviewId, setPlayingPreviewId] = useState(null);
+  const [generatingPreview, setGeneratingPreview] = useState(false);
   const audioRef = useRef(null);
-  const isPlayingRef = useRef(false);
-  const currentSectionRef = useRef(0);
-  const sectionBlobCache = useRef({});
+  const previewCacheRef = useRef({});
+
+  const [callingLeadId, setCallingLeadId] = useState(null);
+  const [liveCall, setLiveCall] = useState(null);
+  const [liveTtsQueue, setLiveTtsQueue] = useState([]);
+  const [isInjectingLiveTts, setIsInjectingLiveTts] = useState(false);
+  const [currentLiveItemId, setCurrentLiveItemId] = useState(null);
+  const [lastStarterCacheStatus, setLastStarterCacheStatus] = useState(null);
+  const [lastPlayedCacheStatus, setLastPlayedCacheStatus] = useState({});
+
+  const storedUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const userId =
+    localStorage.getItem("userId") ||
+    localStorage.getItem("_id") ||
+    storedUser._id ||
+    storedUser.id ||
+    storedUser.userId ||
+    storedUser.user ||
+    "";
+
+  const userName = localStorage.getItem("name") || storedUser.name || "User";
+  const userRole = localStorage.getItem("role") || storedUser.role || "opener";
+  const canCallLead = userRole === "closer" || Boolean(showTransferButton);
+  const userExtension =
+    storedUser.extension || localStorage.getItem("extension") || "";
+  const userDid = storedUser.didNumber || localStorage.getItem("didNumber") || "";
 
   useEffect(() => {
     fetchLeads();
   }, [activeTab, currentPage, itemsPerPage, statusFilter]);
 
   useEffect(() => {
-    filterLeadsBySearch();
+    if (!searchQuery.trim()) {
+      setFilteredLeads(leads);
+      return;
+    }
+    const q = searchQuery.toLowerCase();
+    setFilteredLeads(
+      leads.filter((lead) =>
+        [
+          lead.name,
+          lead.email,
+          lead.phone,
+          lead.book_title,
+          lead.author,
+          lead.publisher,
+          lead.comment,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(q)),
+      ),
+    );
   }, [searchQuery, leads]);
 
   // Prevent body scroll when modal is open
@@ -199,57 +237,118 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   }, [showScriptModal]);
 
   useEffect(() => {
-    if (!showScriptModal) return;
-
-    const onKeyDown = (e) => {
-      if (e.key === "Escape") {
-        setShowScriptModal(false);
-        setSelectedScript(null);
-        setActiveSectionIndex(0);
-        setCompletedSections([]);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [showScriptModal]);
-
-  useEffect(() => {
-    if (selectedScript?.content) {
-      const sections = parseScriptSections(
-        replaceScriptPlaceholders(selectedScript.content),
-      );
-
-      setScriptSections(sections);
+    if (!selectedScript?.content) {
+      setScriptSections([]);
       setActiveSectionIndex(0);
-      setCompletedSections([]);
-      sectionBlobCache.current = {};
+      return;
     }
-  }, [selectedScript, selectedLead, callManagerId, openerName, managerName]);
+    const sections = parseScriptSections(
+      replaceScriptPlaceholders(selectedScript.content),
+    );
+    setScriptSections(sections);
+    setActiveSectionIndex(0);
+    setActiveSectionTitle(null);
+    stopPreview();
+    previewCacheRef.current = {};
+  }, [selectedScript, selectedLead, openerName, managerName, callManagerId]);
+
+  const showNotification = (type, message) => {
+    setNotification({ show: true, type, message });
+    setTimeout(() => {
+      setNotification({ show: false, type: "", message: "" });
+    }, 3000);
+  };
+
+  const resolvedManagerName =
+    managerName || (!selectedLead?.transferred_to ? openerName : "") || "";
+
+  const shouldRemoveOpenerPlaceholder =
+    userRole === "closer" && !selectedLead?.transferred_to;
+
+  const removeOpenerPlaceholder = (text) => {
+    if (!text || !shouldRemoveOpenerPlaceholder) return text || "";
+    return text.replace(/\s*\[Opener Name\]\s*/g, " ");
+  };
+
+  const replaceScriptPlaceholders = (content) => {
+    const currentUserName = localStorage.getItem("name") || "User";
+    return removeOpenerPlaceholder(content || "")
+      .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
+      .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
+      .replace(/\[Your Name\]/g, currentUserName)
+      .replace(/\[Manager Name\]/g, resolvedManagerName || "[Manager Name]")
+      .replace(
+        /\[Opener Name\]/g,
+        (!selectedLead?.transferred_to
+          ? openerAgents.find((a) => a.id === callManagerId)?.name
+          : openerName) || "[Opener Name]",
+      );
+  };
+
+  const normalizeScriptForTts = useCallback(
+    (content) => cleanTextForTTS(replaceScriptPlaceholders(content || "")),
+    [replaceScriptPlaceholders],
+  );
+
+  const buildStableSectionId = useCallback(
+    (script, sectionIndex) => {
+      if (!script?._id) return `script_unknown_section_${sectionIndex}`;
+      return `${script._id}_section_${sectionIndex}`;
+    },
+    [],
+  );
+
+  const starterSection = useMemo(() => {
+    if (!selectedScript || !scriptSections.length) return null;
+    return {
+      _id: buildStableSectionId(selectedScript, 0),
+      parentScriptId: selectedScript._id,
+      parentScriptTitle: selectedScript.title,
+      title: scriptSections[0].title || "Starter Sub-script",
+      content: scriptSections[0].content,
+      sectionIndex: 0,
+    };
+  }, [selectedScript, scriptSections, buildStableSectionId]);
+
+  const activeSection = useMemo(() => {
+    if (!selectedScript || !scriptSections.length) return null;
+    const idx = Math.max(
+      0,
+      Math.min(activeSectionIndex, scriptSections.length - 1),
+    );
+    return {
+      _id: buildStableSectionId(selectedScript, idx),
+      parentScriptId: selectedScript._id,
+      parentScriptTitle: selectedScript.title,
+      title: scriptSections[idx].title || `Sub-script ${idx + 1}`,
+      content: scriptSections[idx].content,
+      sectionIndex: idx,
+    };
+  }, [selectedScript, scriptSections, activeSectionIndex, buildStableSectionId]);
 
   const fetchScripts = async () => {
     setLoadingScripts(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:5000/api/scripts", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        // Filter to show only admin and opener scripts
-        const scriptsArray = Array.isArray(data)
-          ? data.filter((script) => scriptTypeFilter.includes(script.type))
+      const response = await api.get("/scripts");
+      const raw = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.data)
+          ? response.data.data
           : [];
-        setScripts(scriptsArray);
-        // Set first script as selected by default
-        if (scriptsArray.length > 0) {
-          setSelectedScript(scriptsArray[0]);
-        }
-      }
+
+      const filtered = raw.filter((s) =>
+        (scriptTypeFilter || ["admin", "opener", "closer", "general"]).includes(
+          s.type,
+        ),
+      );
+
+      const sorted = [...filtered].sort((a, b) =>
+        (a.title || "").localeCompare(b.title || ""),
+      );
+      setScripts(sorted);
+      setSelectedScript(
+        (prev) => sorted.find((s) => s._id === prev?._id) || sorted[0] || null,
+      );
     } catch (error) {
       console.error("Error fetching scripts:", error);
     } finally {
@@ -305,9 +404,12 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       if (response.data.success) {
         let agents = response.data.data;
         if (userRole === "opener") {
-          // Openers can transfer to closers
           agents = agents.filter(
-            (agent) => agent.role === "closer" && agent.id !== userId,
+            (a) => a.role === "closer" && String(a.id) !== String(userId),
+          );
+        } else if (userRole === "closer") {
+          agents = agents.filter(
+            (a) => a.role === "opener" && String(a.id) !== String(userId),
           );
         }
 
@@ -320,52 +422,50 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     }
   };
 
-  const filterLeadsBySearch = () => {
-    if (!searchQuery.trim()) {
-      setFilteredLeads(leads);
-      return;
+  const extractPrimaryPhone = (phoneValue = "") =>
+    String(phoneValue || "")
+      .split(/[,;/|]/)[0]
+      .trim();
+
+  const sanitizePhoneNumber = (phoneValue = "") =>
+    String(phoneValue).replace(/[^\d+]/g, "");
+
+  const ensureSipMapped = async () => {
+    if (!userId) throw new Error("Missing logged-in user ID");
+    const ext = userExtension || "2002";
+    const response = await api.post("/asterisk/map-device", {
+      userId,
+      extension: ext,
+      sipChannel: `SIP/${ext}`,
+      didNumber: userDid,
+      callerIdName: `${userName} (Sales)`,
+      isActive: true,
+    });
+
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || "Failed to map SIP device");
     }
-
-    const query = searchQuery.toLowerCase();
-    const filtered = leads.filter(
-      (lead) =>
-        lead.name?.toLowerCase().includes(query) ||
-        lead.email?.toLowerCase().includes(query) ||
-        lead.phone?.toLowerCase().includes(query) ||
-        lead.book_title?.toLowerCase().includes(query) ||
-        lead.publisher?.toLowerCase().includes(query) ||
-        lead.author?.toLowerCase().includes(query) ||
-        lead.comment?.toLowerCase().includes(query),
-    );
-
-    setFilteredLeads(filtered);
+    return response.data;
   };
 
-  const handleUpdateRating = async () => {
-    if (!selectedLead || !selectedRating) return;
-
+  const handleMapMySipDevice = async () => {
     try {
-      const response = await api.post(`/contacts/${selectedLead.id}/rating`, {
-        rating: selectedRating,
-        updatedBy: userId,
-      });
-
-      if (response.data.success) {
-        showNotification("success", response.data.message);
-        setShowRatingModal(false);
-        setSelectedRating("");
-        fetchLeads();
-
-        if (selectedRating === "Decline") {
-          window.dispatchEvent(new CustomEvent("refreshContacts"));
-        }
-      }
-    } catch (error) {
+      await ensureSipMapped();
       showNotification(
-        "error",
-        error.response?.data?.message || "Failed to update rating",
+        "success",
+        `SIP device mapped to extension ${userExtension || "2002"}`,
       );
+    } catch (error) {
+      showNotification("error", error.message || "Failed to map SIP device");
     }
+  };
+
+  const resetLiveTtsState = () => {
+    setLiveTtsQueue([]);
+    setIsInjectingLiveTts(false);
+    setCurrentLiveItemId(null);
+    setLastStarterCacheStatus(null);
+    setLastPlayedCacheStatus({});
   };
 
   const handleTransferLead = async () => {
@@ -377,43 +477,57 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       return;
     }
 
-    try {
-      const response = await api.post(`/contacts/${selectedLead.id}/transfer`, {
-        targetAgentId: selectedTargetAgent,
-        reason: transferReason,
-        transferredBy: userId,
-      });
+      setIsInjectingLiveTts(true);
+      setCurrentLiveItemId(item._id);
+      try {
+        const response = await api.post("/asterisk/play-tts-in-call", {
+          callId: liveCall.callId,
+          leadId: selectedLead.id,
+          agentId: userId,
+          phoneNumber: liveCall.phoneNumber,
+          scriptId: item._id,
+          title: item.title,
+          text,
+        });
 
-      if (response.data.success) {
-        showNotification("success", response.data.message);
-        setShowTransferModal(false);
-        setSelectedTargetAgent("");
-        setTransferReason("");
-        fetchLeads();
+        if (!response.data?.success) {
+          throw new Error(response.data?.message || "Failed to inject TTS");
+        }
+
+        const fromCache = Boolean(response.data?.fromCache);
+        setLastPlayedCacheStatus((prev) => ({
+          ...prev,
+          [item._id]: fromCache,
+        }));
+
+        showNotification(
+          "success",
+          `"${item.title}" sent to the live call ${fromCache ? "(using saved WAV)" : "(generated new WAV)"}`,
+        );
+      } catch (error) {
+        showNotification(
+          "error",
+          error.response?.data?.message ||
+            error.message ||
+            "Failed to play in live call",
+        );
+      } finally {
+        setIsInjectingLiveTts(false);
+        setCurrentLiveItemId(null);
       }
-    } catch (error) {
-      showNotification(
-        "error",
-        error.response?.data?.message || "Failed to transfer lead",
-      );
-    }
-  };
+    },
+    [liveCall, selectedLead, userId, normalizeScriptForTts],
+  );
 
-  const handleAddComment = async () => {
-    if (!selectedLead || !commentText.trim()) return;
+  useEffect(() => {
+    if (!liveCall?.callId || !liveTtsQueue.length || isInjectingLiveTts) return;
+    let cancelled = false;
 
-    try {
-      const response = await api.post(`/contacts/${selectedLead.id}/comment`, {
-        comment: commentText,
-        commentedBy: userId,
-        userName: userName,
-      });
-
-      if (response.data.success) {
-        showNotification("success", "Comment added successfully");
-        setShowCommentModal(false);
-        setCommentText("");
-        fetchLeads();
+    const next = liveTtsQueue[0];
+    const run = async () => {
+      await playItemIntoLiveCall(next);
+      if (!cancelled) {
+        setLiveTtsQueue((prev) => prev.slice(1));
       }
     } catch (error) {
       showNotification("error", "Failed to add comment", error);
@@ -442,130 +556,137 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       audioRef.current.onended = null;
       audioRef.current = null;
     }
-    isPlayingRef.current = false;
-    setPlayingScriptId(null);
-    setPausedId(null);
-    setGeneratingAudio(false);
+
+    try {
+      setCallingLeadId(selectedLead.id);
+      setLiveCall({
+        callId: null,
+        leadId: selectedLead.id,
+        phoneNumber: phone,
+        status: "mapping-sip",
+      });
+      resetLiveTtsState();
+
+      await ensureSipMapped();
+      setLiveCall((prev) => (prev ? { ...prev, status: "starting-call" } : prev));
+
+      const response = await api.post("/asterisk/call-with-tts", {
+        leadId: selectedLead.id,
+        phoneNumber: phone,
+        agentId: userId,
+        scriptId: starterSection._id,
+        scriptTitle: starterSection.title,
+        text,
+      });
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || "Failed to start call");
+      }
+
+      const fromCache = Boolean(response.data?.fromCache);
+      setLastStarterCacheStatus(fromCache);
+
+      setLiveCall({
+        callId: response.data.callId,
+        leadId: selectedLead.id,
+        phoneNumber: phone,
+        status: response.data.status || "dialing-microsip",
+        starterScriptTitle: starterSection.title,
+        parentScriptTitle: selectedScript.title,
+      });
+
+      showNotification(
+        "success",
+        `Call started with starter sub-script "${starterSection.title}" ${fromCache ? "(using saved WAV)" : "(generated new WAV)"}.`,
+      );
+    } catch (error) {
+      setLiveCall(null);
+      resetLiveTtsState();
+      showNotification(
+        "error",
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to start call",
+      );
+    } finally {
+      setCallingLeadId(null);
+    }
   };
 
-  const handlePauseAudio = () => {
-    if (audioRef.current && isPlayingRef.current) {
+  const handlePlayInLiveCall = async (item = activeSection) => {
+    if (!item) {
+      showNotification("warning", "Select one sub-script first");
+      return;
+    }
+    if (!liveCall?.callId) {
+      showNotification("warning", "Start the lead call first");
+      return;
+    }
+    if (isInjectingLiveTts) {
+      setLiveTtsQueue((prev) => [...prev, item]);
+      showNotification("success", `"${item.title}" added to queue`);
+      return;
+    }
+    await playItemIntoLiveCall(item);
+  };
+
+  const handleHangupCall = async () => {
+    if (!liveCall?.callId) return;
+    try {
+      await api.post("/asterisk/hangup", { callId: liveCall.callId });
+      showNotification("success", "Call ended");
+    } catch {
+      showNotification("warning", "Call removed from UI");
+    } finally {
+      setLiveCall(null);
+      resetLiveTtsState();
+    }
+  };
+
+  const formatLiveCallStatus = (status) => {
+    const map = {
+      "mapping-sip": "Mapping SIP device...",
+      "starting-call": "Starting call...",
+      "dialing-microsip": "Dialing MicroSIP...",
+      bridged: "In call",
+      "dialing-lead": "Dialing lead...",
+      "queued-tts": "Queued TTS",
+      "playing-tts": "Playing TTS",
+    };
+    return map[status] || status || "";
+  };
+
+  const stopPreview = () => {
+    if (audioRef.current) {
       audioRef.current.pause();
-      isPlayingRef.current = false;
-      setPlayingScriptId(null);
-      setPausedId(selectedScript._id);
+      audioRef.current.onended = null;
+      audioRef.current = null;
     }
+    setPlayingPreviewId(null);
+    setGeneratingPreview(false);
   };
 
-  const handleResumeAudio = () => {
-    if (audioRef.current && pausedId === selectedScript._id) {
-      audioRef.current.play();
-      isPlayingRef.current = true;
-      setPlayingScriptId(selectedScript._id);
-      setPausedId(null);
-    } else {
-      // Resume from next section
-      setPausedId(null);
-      isPlayingRef.current = true;
-      setPlayingScriptId(selectedScript._id);
-      playSectionAudio(currentSectionRef.current);
-    }
-  };
+  const previewSection = async (section, sectionIndex) => {
+    if (!selectedScript || !section) return;
 
-  const shouldRemoveOpenerPlaceholder =
-    userRole === "closer" && !selectedLead?.transferred_to;
-
-  const removeOpenerPlaceholder = (text) => {
-    if (!text) return "";
-    if (!shouldRemoveOpenerPlaceholder) return text;
-
-    return text.replace(/\s*\[Opener Name\]\s*/g, " ");
-  };
-
-  const playSectionAudio = async (sectionIdx) => {
-    if (!selectedScript || !isPlayingRef.current) return;
-
-    const section = scriptSections[sectionIdx];
-    if (!section) {
-      stopAllAudio();
+    const itemId = buildStableSectionId(selectedScript, sectionIndex);
+    if (playingPreviewId === itemId) {
+      stopPreview();
       return;
     }
 
-    if (completedSections.includes(sectionIdx)) {
-      currentSectionRef.current = sectionIdx + 1;
-      playSectionAudio(sectionIdx + 1);
-      return;
-    }
-
-    setActiveSectionIndex(sectionIdx);
-    currentSectionRef.current = sectionIdx;
-    document
-      .getElementById(`section-${sectionIdx}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-
-    const hasDynamic = /\[[^\]]+\]/.test(section.content);
-    const baseUrl = (
-      import.meta.env.VITE_API_URL || "http://localhost:5000/api"
-    ).replace("/api", "");
-    const apiBase = `${baseUrl}/api`;
-    const cacheKey = `${selectedScript._id}_${sectionIdx}`;
-
-    let audioUrl = sectionBlobCache.current[cacheKey] || null;
-
-    if (!audioUrl && !hasDynamic) {
-      // Fetch cached section audio with auth token, convert to blob URL
-      setGeneratingAudio(true);
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(
-          `${apiBase}/scripts/${selectedScript._id}/section-audio/${sectionIdx}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (!res.ok) throw new Error("Section audio not found");
-        const blob = await res.blob();
-        audioUrl = URL.createObjectURL(blob);
-        sectionBlobCache.current[cacheKey] = audioUrl;
-      } catch {
-        audioUrl = null;
-      } finally {
-        setGeneratingAudio(false);
-      }
-    }
-
-    if (!audioUrl) {
-      // Dynamic section generate live
-      setGeneratingAudio(true);
-      const resolvedText = removeOpenerPlaceholder(
-        cleanTextForTTS(section.content),
-      )
-        .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
-        .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
-        .replace(/\[Your Name\]/g, localStorage.getItem("name") || "User")
-        .replace(/\[Manager Name\]/g, resolvedManagerName || "")
-        .replace(
-          /\[Opener Name\]/g,
-          (!selectedLead?.transferred_to
-            ? openerAgents.find((a) => a.id === callManagerId)?.name
-            : openerName) || "",
-        );
-
-      if (!resolvedText.trim()) {
-        setCompletedSections((prev) => [...prev, sectionIdx]);
-        currentSectionRef.current = sectionIdx + 1;
-        playSectionAudio(sectionIdx + 1);
-        return;
-      }
+    stopPreview();
+    setActiveSectionIndex(sectionIndex);
+    setGeneratingPreview(true);
 
       try {
         const response = await api.post("/scripts/generate-audio-temp", {
           scriptId: selectedScript._id,
           sectionText: resolvedText,
         });
-        if (!isPlayingRef.current) return;
-        if (!response.data.success) {
-          showNotification("error", "Failed to generate section audio");
-          stopAllAudio();
-          return;
+
+        if (!response.data?.success) {
+          throw new Error("Failed to generate preview");
         }
         audioUrl = response.data.audioUrl.startsWith("http")
           ? response.data.audioUrl
@@ -583,68 +704,113 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
     if (!isPlayingRef.current) return;
 
-    const audio = new Audio(audioUrl);
-    audioRef.current = audio;
-
-    audio.play().catch((err) => {
-      console.error("Play error:", err);
-      stopAllAudio();
-    });
-
-    audio.onended = () => {
-      if (!isPlayingRef.current) return;
-      setCompletedSections((prev) => [...prev, sectionIdx]);
-
-      const nextIdx = sectionIdx + 1;
-      if (!scriptSections[nextIdx]) {
-        stopAllAudio();
-        return;
-      }
-
-      const hasPause =
-        section.content.includes("[PAUSE]") ||
-        /Pause\.\s*Let them answer/i.test(section.content);
-
-      if (hasPause) {
-        isPlayingRef.current = false;
-        setPlayingScriptId(null);
-        setActiveSectionIndex(nextIdx);
-        currentSectionRef.current = nextIdx;
-      } else {
-        currentSectionRef.current = nextIdx;
-        playSectionAudio(nextIdx);
-      }
-    };
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      setPlayingPreviewId(itemId);
+      audio.onended = () => stopPreview();
+      await audio.play();
+    } catch (error) {
+      console.error("Preview error:", error);
+      stopPreview();
+      showNotification("error", "Failed to preview sub-script");
+    } finally {
+      setGeneratingPreview(false);
+    }
   };
 
-  const handlePlayAudio = async () => {
+  const handleCopyScript = async () => {
     if (!selectedScript) return;
+    try {
+      await navigator.clipboard.writeText(
+        replaceScriptPlaceholders(selectedScript.content || ""),
+      );
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      showNotification("success", "Script copied to clipboard");
+    } catch {
+      showNotification("error", "Failed to copy script");
+    }
+  };
 
-    // If playing, stop entirely
-    if (isPlayingRef.current) {
-      stopAllAudio();
+  const handleUpdateRating = async () => {
+    if (!selectedLead || !selectedRating) return;
+    try {
+      const response = await api.post(`/contacts/${selectedLead.id}/rating`, {
+        rating: selectedRating,
+        updatedBy: userId,
+      });
+      if (response.data?.success) {
+        setShowRatingModal(false);
+        setSelectedRating("");
+        showNotification("success", response.data.message || "Lead updated");
+        fetchLeads();
+      }
+    } catch (error) {
+      showNotification(
+        "error",
+        error.response?.data?.message || "Failed to update rating",
+      );
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!selectedLead || !commentText.trim()) return;
+    try {
+      const response = await api.post(`/contacts/${selectedLead.id}/comment`, {
+        comment: commentText,
+        commentedBy: userId,
+        userName,
+      });
+      if (response.data?.success) {
+        setShowCommentModal(false);
+        setCommentText("");
+        showNotification("success", "Comment added successfully");
+        fetchLeads();
+      }
+    } catch {
+      showNotification("error", "Failed to add comment");
+    }
+  };
+
+  const handleTransferLead = async () => {
+    if (!selectedLead || !selectedTargetAgent || !transferReason.trim()) {
+      showNotification(
+        "warning",
+        "Please select an agent and provide a reason",
+      );
       return;
     }
-
-    // If paused, resume
-    if (pausedId === selectedScript._id) {
-      handleResumeAudio();
-      return;
+    try {
+      const response = await api.post(`/contacts/${selectedLead.id}/transfer`, {
+        targetAgentId: selectedTargetAgent,
+        reason: transferReason,
+        transferredBy: userId,
+      });
+      if (response.data?.success) {
+        setShowTransferModal(false);
+        setSelectedTargetAgent("");
+        setTransferReason("");
+        showNotification(
+          "success",
+          response.data.message || "Lead transferred",
+        );
+        fetchLeads();
+      }
+    } catch (error) {
+      showNotification(
+        "error",
+        error.response?.data?.message || "Failed to transfer lead",
+      );
     }
+  };
 
-    // Fresh start
-    const startSection = Math.min(
-      Math.max(activeSectionIndex, 0),
-      Math.max(scriptSections.length - 1, 0),
-    );
-
-    isPlayingRef.current = true;
-    setPlayingScriptId(selectedScript._id);
-    setPausedId(null);
-    currentSectionRef.current = startSection;
-    setActiveSectionIndex(startSection);
-    setCompletedSections((prev) => prev.filter((idx) => idx !== startSection));
-    playSectionAudio(startSection);
+  const closeScriptModal = () => {
+    stopPreview();
+    setShowScriptModal(false);
+    setSelectedScript(null);
+    setScriptSections([]);
+    setActiveSectionIndex(0);
+    setActiveSectionTitle(null);
   };
 
   const resolvedManagerName =
@@ -787,10 +953,75 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         </div>
       )}
 
-      {/* Comment Modal */}
+      {liveCall && (
+        <div className="fixed top-20 right-4 z-50 bg-white border border-indigo-200 shadow-lg rounded-xl px-4 py-3 w-80">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Active Call</p>
+              <p className="text-xs text-gray-500">{liveCall.phoneNumber}</p>
+              <p className="text-xs text-indigo-600">
+                {formatLiveCallStatus(liveCall.status)}
+              </p>
+              {liveCall.parentScriptTitle && (
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Script:{" "}
+                  <span className="font-medium">
+                    {liveCall.parentScriptTitle}
+                  </span>
+                </p>
+              )}
+              {liveCall.starterScriptTitle && (
+                <p className="text-[11px] text-green-700">
+                  Starter sub-script:{" "}
+                  <span className="font-medium">
+                    {liveCall.starterScriptTitle}
+                  </span>
+                </p>
+              )}
+              {lastStarterCacheStatus !== null && (
+                <p className="text-[11px] text-emerald-700 mt-1">
+                  Starter WAV:{" "}
+                  <span className="font-medium">
+                    {lastStarterCacheStatus ? "saved/cache" : "newly generated"}
+                  </span>
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleHangupCall}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+            >
+              Hang Up
+            </button>
+          </div>
+
+          {(isInjectingLiveTts || liveTtsQueue.length > 0) && (
+            <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+              {isInjectingLiveTts && (
+                <p className="text-xs text-blue-600">
+                  Playing sub-script in call...
+                </p>
+              )}
+              {liveTtsQueue.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {liveTtsQueue.map((item, idx) => (
+                    <span
+                      key={`${item._id}-${idx}`}
+                      className="text-[11px] px-2 py-1 rounded-full bg-amber-100 text-amber-700"
+                    >
+                      {idx + 1}. {item.title}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {showCommentModal && selectedLead && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full">
             <h3 className="text-lg font-semibold mb-4">
               Add Comment for {selectedLead.name}
             </h3>
@@ -801,20 +1032,16 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[120px]"
               autoFocus
             />
-            <div className="flex justify-end space-x-3 mt-4">
+            <div className="flex justify-end gap-3 mt-4">
               <button
-                onClick={() => {
-                  setShowCommentModal(false);
-                  setCommentText("");
-                }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                onClick={() => setShowCommentModal(false)}
+                className="px-4 py-2 text-gray-600"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddComment}
-                disabled={!commentText.trim()}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg"
               >
                 Add Comment
               </button>
@@ -825,65 +1052,36 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
       {/* Rating Modal */}
       {showRatingModal && selectedLead && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
             <h3 className="text-lg font-semibold mb-4">
               Update Lead: {selectedLead.name}
             </h3>
-            <p className="text-sm text-gray-600 mb-4">Choose an option:</p>
             <div className="space-y-3">
-              <button
-                onClick={() => setSelectedRating("Flagged")}
-                className={`w-full p-3 rounded-lg border-2 transition ${
-                  selectedRating === "Flagged"
-                    ? "border-purple-500 bg-purple-50"
-                    : "border-gray-200 hover:border-purple-200"
-                }`}
-              >
-                <div className="flex items-center">
-                  <FiFlag className="h-5 w-5 text-purple-500 mr-2" />
-                  <div className="text-left">
-                    <span className="font-medium block">Flagged</span>
-                    <span className="text-xs text-gray-500">
-                      Lead stays assigned to you
-                    </span>
-                  </div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setSelectedRating("Decline")}
-                className={`w-full p-3 rounded-lg border-2 transition ${
-                  selectedRating === "Decline"
-                    ? "border-red-500 bg-red-50"
-                    : "border-gray-200 hover:border-red-200"
-                }`}
-              >
-                <div className="flex items-center">
-                  <FiThumbsDown className="h-5 w-5 text-red-500 mr-2" />
-                  <div className="text-left">
-                    <span className="font-medium block">Decline</span>
-                    <span className="text-xs text-gray-500">
-                      Lead removed from your list
-                    </span>
-                  </div>
-                </div>
-              </button>
+              {["Flagged", "Decline"].map((value) => (
+                <button
+                  key={value}
+                  onClick={() => setSelectedRating(value)}
+                  className={`w-full p-3 rounded-lg border ${
+                    selectedRating === value
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "border-gray-200"
+                  }`}
+                >
+                  {value}
+                </button>
+              ))}
             </div>
-            <div className="flex justify-end space-x-3 mt-6">
+            <div className="flex justify-end gap-3 mt-6">
               <button
-                onClick={() => {
-                  setShowRatingModal(false);
-                  setSelectedRating("");
-                }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                onClick={() => setShowRatingModal(false)}
+                className="px-4 py-2 text-gray-600"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUpdateRating}
-                disabled={!selectedRating}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg"
               >
                 Update
               </button>
@@ -894,83 +1092,41 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
       {/* Transfer Modal */}
       {showTransferModal && selectedLead && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">
-                Transfer Lead: {selectedLead.name}
-              </h3>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full">
+            <h3 className="text-lg font-semibold mb-4">
+              Transfer Lead: {selectedLead.name}
+            </h3>
+            <select
+              value={selectedTargetAgent}
+              onChange={(e) => setSelectedTargetAgent(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4"
+            >
+              <option value="">Select agent</option>
+              {availableAgents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name} ({agent.role})
+                </option>
+              ))}
+            </select>
+            <textarea
+              value={transferReason}
+              onChange={(e) => setTransferReason(e.target.value)}
+              className="w-full min-h-[100px] border border-gray-300 rounded-lg px-3 py-2"
+              placeholder="Transfer reason"
+            />
+            <div className="flex justify-end gap-3 mt-4">
               <button
-                onClick={() => {
-                  setShowTransferModal(false);
-                  setSelectedTargetAgent("");
-                  setTransferReason("");
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <FiX className="h-5 w-5" />
-              </button>
-            </div>
-
-            <p className="text-sm text-gray-600 mb-4">
-              This lead will be flagged in your list and transferred to the
-              selected agent.
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Agent
-                </label>
-                <select
-                  value={selectedTargetAgent}
-                  onChange={(e) => setSelectedTargetAgent(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Select an agent...</option>
-                  {loadingAgents ? (
-                    <option disabled>Loading agents...</option>
-                  ) : (
-                    availableAgents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} ({agent.role}) - {agent.email}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Transfer Reason
-                </label>
-                <textarea
-                  value={transferReason}
-                  onChange={(e) => setTransferReason(e.target.value)}
-                  placeholder="Enter reason for transfer..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[100px]"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowTransferModal(false);
-                  setSelectedTargetAgent("");
-                  setTransferReason("");
-                }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                onClick={() => setShowTransferModal(false)}
+                className="px-4 py-2 text-gray-600"
               >
                 Cancel
               </button>
               <button
                 onClick={handleTransferLead}
-                disabled={!selectedTargetAgent || !transferReason.trim()}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg"
               >
-                <FiSend className="mr-2 h-4 w-4" />
-                Transfer & Flag
+                Transfer
               </button>
             </div>
           </div>
@@ -979,89 +1135,95 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
 
       {/* Script Modal */}
       {showScriptModal && selectedLead && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Scripts for ${selectedLead.name}`}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowScriptModal(false);
-              setSelectedScript(null);
-              setActiveSectionIndex(0);
-              setCompletedSections([]);
-            }
-          }}
-        >
-          <div className="relative h-full w-full p-3 sm:p-6 flex items-center justify-center">
-            <div className="bg-white w-full max-w-6xl rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] flex flex-col">
-              <div className="flex items-start justify-between gap-4 p-4 sm:p-5 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-                <div className="min-w-0">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
-                    Scripts for {selectedLead.name}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">
-                    Book: "{selectedLead.book_title}"
-                  </p> 
-                </div>
-                <button
-                  onClick={() => {
-                    setShowScriptModal(false);
-                    setSelectedScript(null);
-                    setActiveSectionIndex(0);
-                    setCompletedSections([]);
-                  }}
-                  className="shrink-0 inline-flex items-center justify-center rounded-md p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                  aria-label="Close"
-                >
-                  <FiX className="h-5 w-5" />
-                </button>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3 sm:p-6">
+          <div className="bg-white w-full max-w-7xl rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-[calc(100dvh-1.5rem)] flex flex-col">
+            <div className="flex items-start justify-between gap-4 p-4 sm:p-5 border-b border-gray-200 bg-gray-50">
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                  Scripts for {selectedLead.name}
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">
+                  Book: "{selectedLead.book_title}"
+                </p>
+                {selectedScript && starterSection && (
+                  <p className="text-[11px] text-green-700 mt-1">
+                    Selected script:{" "}
+                    <span className="font-medium">{selectedScript.title}</span> ·
+                    Starter sub-script:{" "}
+                    <span className="font-medium">
+                      {activeSectionTitle === null
+                        ? starterSection.title
+                        : activeSectionTitle}
+                    </span>
+                  </p>
+                )}
               </div>
+              <button
+                onClick={closeScriptModal}
+                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
 
-              <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
-                <div className="hidden lg:flex lg:w-[240px] border-r border-gray-200 flex-col flex-shrink-0 bg-gray-50">
-                  <div className="px-4 py-3 border-b border-gray-200">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Templates
-                    </p>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-3 space-y-1">
-                    {loadingScripts ? (
-                      <div className="flex justify-center py-8">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" />
-                      </div>
-                    ) : scripts.length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-8">
-                        No scripts
-                      </p>
-                    ) : (
-                      scripts.map((script) => (
+            <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+              <div className="w-full lg:w-[280px] xl:w-[320px] border-r border-gray-200 bg-gray-50 flex flex-col">
+                <div className="px-4 py-3 border-b border-gray-200">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Main Scripts
+                  </p>
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {loadingScripts ? (
+                    <div className="text-sm text-gray-500 text-center py-8">
+                      Loading...
+                    </div>
+                  ) : scripts.length === 0 ? (
+                    <div className="text-sm text-gray-400 text-center py-8">
+                      No scripts
+                    </div>
+                  ) : (
+                    scripts.map((script) => {
+                      const isSelected = selectedScript?._id === script._id;
+                      return (
                         <button
                           key={script._id}
                           onClick={() => setSelectedScript(script)}
-                          className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all ${
-                            selectedScript?._id === script._id
+                          className={`w-full text-left rounded-xl border p-4 transition ${
+                            isSelected
                               ? "border-indigo-300 bg-indigo-50"
-                              : "border-transparent hover:bg-white hover:border-gray-200"
+                              : "border-gray-200 bg-white hover:border-indigo-200"
                           }`}
                         >
-                          <div className="flex items-center gap-2">
-                            {playingScriptId === script._id && (
-                              <FiVolume2 className="h-3.5 w-3.5 text-green-600 animate-pulse flex-shrink-0" />
-                            )}
+                          <div className="flex items-start gap-3">
+                            <FiPlay
+                              className={`h-4 w-4 mt-1 ${
+                                isSelected ? "text-indigo-600" : "text-gray-300"
+                              }`}
+                            />
                             <div className="min-w-0">
                               <p
                                 className={`text-sm font-medium truncate ${
-                                  selectedScript?._id === script._id
+                                  isSelected
                                     ? "text-indigo-700"
                                     : "text-gray-900"
                                 }`}
                               >
                                 {script.title}
                               </p>
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {script.type}
-                              </p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                                  {script.type}
+                                </span>
+                                {selectedScript?._id === script._id &&
+                                  starterSection && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                      {activeSectionTitle === null
+                                        ? starterSection.title
+                                        : activeSectionTitle}
+                                    </span>
+                                  )}
+                              </div>
                             </div>
                           </div>
                         </button>
@@ -1091,86 +1253,144 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                 </div>
 
                 {selectedScript ? (
-                  <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                    <div className="px-4 sm:px-5 py-3 border-b border-gray-200 flex items-center justify-between gap-3 flex-shrink-0">
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-semibold text-gray-900 truncate">
-                          {selectedScript.title}
-                        </h4>
-                        {selectedScript.author && (
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            Created by {selectedScript.author.name}
+                  <>
+                    <div className="px-4 sm:px-5 py-4 border-b border-gray-200 bg-white">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="text-sm font-semibold text-gray-900 truncate">
+                                {selectedScript.title}
+                              </h4>
+                              {starterSection && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                                  starter sub-script:{" "}
+                                  {activeSectionTitle === null
+                                    ? starterSection.title
+                                    : activeSectionTitle}
+                                </span>
+                              )}
+                            </div>
+                            {selectedScript.author && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                Created by {selectedScript.author.name}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {canCallLead && (
+                              <button
+                                onClick={handleStartCall}
+                                disabled={
+                                  !selectedLead ||
+                                  !selectedScript ||
+                                  !starterSection ||
+                                  callingLeadId === selectedLead?.id
+                                }
+                                className="inline-flex items-center px-3 py-2 text-xs font-medium text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg disabled:opacity-50"
+                              >
+                                <FiPhone className="h-3.5 w-3.5 mr-1.5" />
+                                {callingLeadId === selectedLead?.id
+                                  ? "Calling..."
+                                  : "Call Lead + Starter Sub-script"}
+                              </button>
+                            )}
+
+                            {liveCall?.callId && (
+                              <button
+                                onClick={() => handlePlayInLiveCall(activeSection)}
+                                className="inline-flex items-center px-3 py-2 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg"
+                              >
+                                <FiSend className="h-3.5 w-3.5 mr-1.5" />
+                                {isInjectingLiveTts
+                                  ? "Queue Selected Sub-script"
+                                  : "Play Selected Sub-script in Call"}
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() =>
+                                activeSection &&
+                                previewSection(
+                                  { content: activeSection.content },
+                                  activeSection.sectionIndex,
+                                )
+                              }
+                              className="inline-flex items-center px-3 py-2 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg"
+                            >
+                              {generatingPreview ? (
+                                <FiRefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                              ) : (
+                                <FiVolume2 className="h-3.5 w-3.5 mr-1.5" />
+                              )}
+                              {playingPreviewId === activeSection?._id
+                                ? "Stop Preview"
+                                : "Preview Selected Sub-script"}
+                            </button>
+
+                            <button
+                              onClick={handleCopyScript}
+                              className="inline-flex items-center px-3 py-2 text-xs font-medium text-indigo-700 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
+                            >
+                              <FiCopy className="h-3.5 w-3.5 mr-1.5" />
+                              {copied ? "Copied!" : "Copy Main Script"}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                            Closer Flow
                           </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={handlePlayAudio}
-                          disabled={generatingAudio}
-                          className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border transition ${
-                            playingScriptId === selectedScript._id
-                              ? "text-red-600 border-red-200 bg-red-50 hover:bg-red-100"
-                              : pausedId === selectedScript._id
-                                ? "text-green-700 border-green-200 bg-green-50 hover:bg-green-100"
-                                : "text-green-700 border-green-200 bg-green-50 hover:bg-green-100"
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                          <FiVolume2
-                            className={`h-3.5 w-3.5 mr-1.5 ${
-                              playingScriptId === selectedScript._id
-                                ? "animate-pulse"
-                                : ""
-                            }`}
-                          />
-                          {generatingAudio
-                            ? "Generating..."
-                            : playingScriptId === selectedScript._id
-                              ? "Stop"
-                              : pausedId === selectedScript._id
-                                ? "Resume"
-                                : "Play"}
-                        </button>
-                        {playingScriptId === selectedScript._id && (
-                          <button
-                            onClick={handlePauseAudio}
-                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-amber-700 border border-amber-200 bg-amber-50 hover:bg-amber-100 rounded-lg transition"
-                          >
-                            <FiPauseCircle className="h-3.5 w-3.5 mr-1.5" />
-                            Pause
-                          </button>
-                        )}
-                        <button
-                          onClick={handleCopyScript}
-                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-indigo-700 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition"
-                        >
-                          <FiCopy className="h-3.5 w-3.5 mr-1.5" />
-                          {copied ? "Copied!" : "Copy"}
-                        </button>
+                          <p className="text-sm text-indigo-900 mt-1">
+                            Choose one main script first. When you click call,
+                            only the starter sub-script of that chosen script
+                            will play first. After that, you can choose any one
+                            sub-script below and play it in the same call.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {lastStarterCacheStatus !== null && (
+                            <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                              Starter WAV:{" "}
+                              {lastStarterCacheStatus
+                                ? "using saved audio"
+                                : "newly generated"}
+                            </span>
+                          )}
+                          {activeSection &&
+                            Object.prototype.hasOwnProperty.call(
+                              lastPlayedCacheStatus,
+                              activeSection._id,
+                            ) && (
+                              <span className="text-[11px] px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                                Selected sub-script WAV:{" "}
+                                {lastPlayedCacheStatus[activeSection._id]
+                                  ? "using saved audio"
+                                  : "newly generated"}
+                              </span>
+                            )}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Navigation Pills */}
-                    {scriptSections.length > 1 && (
-                      <div className="px-4 sm:px-5 py-2.5 border-b border-gray-200 flex gap-2 flex-wrap flex-shrink-0 bg-gray-50">
-                        {scriptSections.map((sec, idx) => (
+                    <div className="px-4 sm:px-5 py-3 border-b border-gray-200 bg-gray-50 overflow-x-auto">
+                      <div className="flex gap-2">
+                        {scriptSections.map((section, idx) => (
                           <button
-                            key={idx}
+                            key={`${selectedScript._id}-${idx}`}
                             onClick={() => {
                               setActiveSectionIndex(idx);
-                              currentSectionRef.current = idx;
-                              document
-                                .getElementById(`section-${idx}`)
-                                ?.scrollIntoView({
-                                  behavior: "smooth",
-                                  block: "nearest",
-                                });
+                              setActiveSectionTitle(
+                                section.title || `Sub-script ${idx + 1}`,
+                              );
                             }}
-                            className={`px-3 py-1 rounded-full text-xs font-medium border transition whitespace-nowrap ${
-                              completedSections.includes(idx)
-                                ? "bg-gray-100 text-gray-400 border-gray-200 line-through"
-                                : activeSectionIndex === idx
-                                  ? "bg-indigo-600 text-white border-indigo-600"
-                                  : "bg-white text-gray-600 border-gray-300 hover:border-indigo-300 hover:text-indigo-600"
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border ${
+                              activeSectionIndex === idx
+                                ? "bg-indigo-600 border-indigo-600 text-white"
+                                : "bg-white border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
                             }`}
                           >
                             {sec.title.length > 22
@@ -1179,156 +1399,111 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                           </button>
                         ))}
                       </div>
-                    )}
+                    </div>
 
-                    {/* Section Content */}
-                    <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3">
-                      {scriptSections.length > 0 ? (
-                        scriptSections.map((sec, idx) => (
+                    <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 bg-gray-50">
+                      {scriptSections.map((section, idx) => {
+                        const item = {
+                          _id: buildStableSectionId(selectedScript, idx),
+                          parentScriptId: selectedScript._id,
+                          parentScriptTitle: selectedScript.title,
+                          title: section.title || `Sub-script ${idx + 1}`,
+                          content: section.content,
+                          sectionIndex: idx,
+                        };
+                        const isActive = activeSectionIndex === idx;
+                        const isPreviewing = playingPreviewId === item._id;
+                        const isPlayingInCall = currentLiveItemId === item._id;
+                        const hasCacheStatus = Object.prototype.hasOwnProperty.call(
+                          lastPlayedCacheStatus,
+                          item._id,
+                        );
+
+                        return (
                           <div
-                            key={idx}
-                            id={`section-${idx}`}
-                            className={`rounded-xl border transition-all overflow-hidden ${
-                              completedSections.includes(idx)
-                                ? "opacity-40 border-gray-200"
-                                : activeSectionIndex === idx
-                                  ? "border-indigo-300 ring-1 ring-indigo-100"
-                                  : "border-gray-200"
+                            key={item._id}
+                            className={`rounded-xl border overflow-hidden ${
+                              isActive
+                                ? "border-indigo-300 ring-1 ring-indigo-100 bg-white"
+                                : "border-gray-200 bg-white"
                             }`}
                           >
-                            {/* Header */}
                             <div
-                              className={`px-4 py-2.5 flex items-center justify-between cursor-pointer select-none ${
-                                completedSections.includes(idx)
-                                  ? "bg-gray-50"
-                                  : activeSectionIndex === idx
-                                    ? "bg-indigo-50"
-                                    : "bg-gray-50 hover:bg-gray-100"
+                              className={`px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${
+                                isActive ? "bg-indigo-50" : "bg-gray-50"
                               }`}
-                              onClick={() => {
-                                setActiveSectionIndex(idx);
-                                currentSectionRef.current = idx;
-                              }}
                             >
-                              <div className="flex items-center gap-2 min-w-0">
-                                {completedSections.includes(idx) ? (
-                                  <svg
-                                    className="h-3.5 w-3.5 text-gray-400 flex-shrink-0"
-                                    viewBox="0 0 14 14"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                  >
-                                    <polyline points="2,7 6,11 12,3" />
-                                  </svg>
-                                ) : activeSectionIndex === idx &&
-                                  playingScriptId === selectedScript._id ? (
-                                  <FiVolume2 className="h-3.5 w-3.5 text-indigo-500 animate-pulse flex-shrink-0" />
-                                ) : (
-                                  <div
-                                    className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                                      activeSectionIndex === idx
-                                        ? "bg-indigo-500"
-                                        : "bg-gray-300"
-                                    }`}
-                                  />
-                                )}
-                                <span
-                                  className={`text-xs font-semibold truncate ${
-                                    completedSections.includes(idx)
-                                      ? "text-gray-400 line-through"
-                                      : activeSectionIndex === idx
-                                        ? "text-indigo-700"
-                                        : "text-gray-700"
+                              <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                                <div
+                                  className={`h-2.5 w-2.5 rounded-full ${
+                                    isActive ? "bg-indigo-500" : "bg-gray-300"
+                                  }`}
+                                />
+                                <p
+                                  className={`text-sm truncate ${
+                                    isActive
+                                      ? "font-semibold text-indigo-700"
+                                      : "font-medium text-gray-800"
                                   }`}
                                 >
-                                  {sec.title}
-                                </span>
-                                {activeSectionIndex === idx &&
-                                  !completedSections.includes(idx) && (
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium flex-shrink-0">
-                                      {playingScriptId === selectedScript._id
-                                        ? "playing"
-                                        : "active"}
-                                    </span>
-                                  )}
-                              </div>
-
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCompletedSections((prev) =>
-                                    prev.includes(idx)
-                                      ? prev.filter((i) => i !== idx)
-                                      : [...prev, idx],
-                                  );
-                                  if (!completedSections.includes(idx)) {
-                                    const next = scriptSections.findIndex(
-                                      (_, i) =>
-                                        i > idx &&
-                                        !completedSections.includes(i),
-                                    );
-                                    if (next !== -1)
-                                      setActiveSectionIndex(next);
-                                  }
-                                }}
-                                className={`text-xs px-2 py-0.5 rounded border flex-shrink-0 ml-2 transition ${
-                                  completedSections.includes(idx)
-                                    ? "border-gray-300 text-gray-500 hover:bg-gray-100"
-                                    : "border-green-300 text-green-700 hover:bg-green-50"
-                                }`}
-                              >
-                                {completedSections.includes(idx)
-                                  ? "Undo"
-                                  : "Done"}
-                              </button>
-                            </div>
-
-                            {/* Body */}
-                            {(activeSectionIndex === idx ||
-                              !completedSections.includes(idx)) && (
-                              <div
-                                className={`px-4 py-3 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap ${
-                                  completedSections.includes(idx)
-                                    ? "hidden"
-                                    : ""
-                                }`}
-                              >
-                                {sec.content}
-                              </div>
-                            )}
-
-                            {/* Pause Bar */}
-                            {sec.content.includes("[PAUSE]") &&
-                              !completedSections.includes(idx) && (
-                                <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 flex items-center justify-between">
-                                  <span className="text-xs text-amber-700 font-medium flex items-center gap-1.5">
-                                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
-                                    Pause — let client respond
+                                  {item.title}
+                                </p>
+                                {idx === 0 && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                    starter
                                   </span>
+                                )}
+                                {hasCacheStatus && (
+                                  <span
+                                    className={`text-[10px] px-2 py-0.5 rounded-full ${
+                                      lastPlayedCacheStatus[item._id]
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-blue-100 text-blue-700"
+                                    }`}
+                                  >
+                                    {lastPlayedCacheStatus[item._id]
+                                      ? "saved WAV"
+                                      : "new WAV"}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex gap-2 flex-wrap">
+                                <button
+                                  onClick={() => {
+                                    setActiveSectionIndex(idx);
+                                    setActiveSectionTitle(
+                                      section.title || `Sub-script ${idx + 1}`,
+                                    );
+                                    previewSection(section, idx);
+                                  }}
+                                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg"
+                                >
+                                  {isPreviewing ? (
+                                    <FiPauseCircle className="h-3.5 w-3.5 mr-1.5" />
+                                  ) : (
+                                    <FiVolume2 className="h-3.5 w-3.5 mr-1.5" />
+                                  )}
+                                  {isPreviewing
+                                    ? "Stop Preview"
+                                    : "Preview This Sub-script"}
+                                </button>
+                                {liveCall?.callId && (
                                   <button
                                     onClick={() => {
-                                      setCompletedSections((prev) => [
-                                        ...prev,
-                                        idx,
-                                      ]);
-                                      const next = scriptSections.findIndex(
-                                        (_, i) =>
-                                          i > idx &&
-                                          !completedSections.includes(i),
+                                      setActiveSectionIndex(idx);
+                                      setActiveSectionTitle(
+                                        section.title || `Sub-script ${idx + 1}`,
                                       );
-                                      if (next !== -1) {
-                                        setActiveSectionIndex(next);
-                                        // Resume playing from the next section
-                                        isPlayingRef.current = true;
-                                        setPlayingScriptId(selectedScript._id);
-                                        currentSectionRef.current = next;
-                                        playSectionAudio(next);
-                                      }
+                                      handlePlayInLiveCall(item);
                                     }}
-                                    className="text-xs px-3 py-1 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium"
+                                    className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg"
                                   >
-                                    Continue ▶
+                                    <FiSend className="h-3.5 w-3.5 mr-1.5" />
+                                    {isPlayingInCall
+                                      ? "Playing in Call..."
+                                      : isInjectingLiveTts
+                                        ? "Queue This Sub-script"
+                                        : "Play This Sub-script in Call"}
                                   </button>
                                 </div>
                               )}
@@ -1415,15 +1590,11 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                       fetchAvailableAgents();
                     }
                   }}
-                  className={`
-                    group inline-flex items-center px-1 py-4 border-b-2 font-medium text-sm relative
-                    ${
-                      isActive
-                        ? colorClasses[tab.color]
-                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    }
-                  `}
-                  title={tab.description}
+                  className={`inline-flex items-center px-1 py-4 border-b-2 font-medium text-sm ${
+                    isActive
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
                 >
                   <Icon
                     className={`mr-2 h-5 w-5 ${
@@ -1454,8 +1625,15 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               />
             </div>
-
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              {canCallLead && (
+                <button
+                  onClick={handleMapMySipDevice}
+                  className="px-3 py-2 text-xs border border-indigo-300 text-indigo-600 rounded-md hover:bg-indigo-50"
+                >
+                  Map My SIP
+                </button>
+              )}
               <select
                 value={statusFilter}
                 onChange={(e) => {
@@ -1471,10 +1649,9 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                 <option value="Completed">Completed</option>
                 <option value="Closed">Closed</option>
               </select>
-
               <button
                 onClick={fetchLeads}
-                className="p-2 text-gray-400 hover:text-gray-500"
+                className="p-2 text-gray-400 hover:text-gray-600"
               >
                 <FiRefreshCw
                   className={`h-5 w-5 ${isLoading ? "animate-spin" : ""}`}
@@ -1508,166 +1685,41 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Contact Info
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Book Details
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Status
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Rating
-                </th>
-                {activeTab === "transferred" && (
+                {[
+                  "Contact Info",
+                  "Book Details",
+                  "Status",
+                  "Comments",
+                  "Actions",
+                ].map((head) => (
                   <th
-                    scope="col"
+                    key={head}
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
-                    Transferred By
+                    {head}
                   </th>
-                )}
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Comments/Notes
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Actions
-                </th>
+                ))}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td
-                    colSpan={activeTab === "transferred" ? 7 : 6}
-                    className="px-6 py-4 text-center"
-                  >
-                    <div className="flex justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                    </div>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    Loading...
                   </td>
                 </tr>
               ) : filteredLeads.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={activeTab === "transferred" ? 7 : 6}
-                    className="px-6 py-4 text-center text-gray-500"
-                  >
-                    {searchQuery ? (
-                      "No leads match your search"
-                    ) : activeTab === "my-leads" ? (
-                      <div className="flex flex-col items-center py-8">
-                        <FiUser className="h-12 w-12 text-gray-300 mb-3" />
-                        <p className="text-gray-500 font-medium">
-                          No active leads
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          Leads assigned to you will appear here
-                        </p>
-                      </div>
-                    ) : activeTab === "flagged" ? (
-                      <div className="flex flex-col items-center py-8">
-                        <FiFlag className="h-12 w-12 text-gray-300 mb-3" />
-                        <p className="text-gray-500 font-medium">
-                          No flagged leads yet
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          When you flag leads, they will appear here
-                        </p>
-                      </div>
-                    ) : activeTab === "transferred" ? (
-                      <div className="flex flex-col items-center py-8">
-                        <FiSend className="h-12 w-12 text-gray-300 mb-3" />
-                        <p className="text-gray-500 font-medium">
-                          No transferred leads
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          Leads transferred to you will appear here
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center py-8">
-                        <FiThumbsDown className="h-12 w-12 text-gray-300 mb-3" />
-                        <p className="text-gray-500 font-medium">
-                          No declined leads
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          Leads you decline will appear here
-                        </p>
-                      </div>
-                    )}
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    No leads found
                   </td>
                 </tr>
               ) : (
                 filteredLeads.map((lead) => (
                   <tr
                     key={lead.id}
-                    onClick={async () => {
-                      setSelectedLead(lead);
-                      setShowScriptModal(true);
-                      fetchScripts();
-                      const token = localStorage.getItem("token");
-                      const fetchName = async (id) => {
-                        if (!id) return "";
-                        try {
-                          const res = await fetch(
-                            `http://localhost:5000/api/users/${id}/name`,
-                            {
-                              headers: { Authorization: `Bearer ${token}` },
-                            },
-                          );
-                          if (res.ok) {
-                            const d = await res.json();
-                            return d.name;
-                          }
-                        } catch {}
-                        return "";
-                      };
-                      const [opener, manager] = await Promise.all([
-                        fetchName(lead.assigned_to),
-                        fetchName(lead.transferred_to),
-                      ]);
-                      setOpenerName(opener);
-                      setManagerName(manager);
-                      setCallManagerId("");
-                      if (!lead.transferred_to) {
-                        try {
-                          const token = localStorage.getItem("token");
-                          const res = await fetch(
-                            "http://localhost:5000/api/contacts/agents/available",
-                            {
-                              headers: { Authorization: `Bearer ${token}` },
-                            },
-                          );
-                          if (res.ok) {
-                            const d = await res.json();
-                            setOpenerAgents(
-                              (d.data || []).filter((a) => a.role === "opener"),
-                            );
-                          }
-                        } catch {}
-                      }
-                    }}
                     className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => openLeadScriptModal(lead)}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -1687,7 +1739,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                             {lead.name?.charAt(0).toUpperCase() || "?"}
                           </span>
                         </div>
-                        <div className="ml-4">
+                        <div>
                           <div className="text-sm font-medium text-gray-900">
                             {lead.name || "No Name"}
                           </div>
@@ -1705,18 +1757,13 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
-                        <div className="flex items-center">
-                          <FiBook className="mr-1 h-3 w-3 text-gray-400" />
-                          {lead.book_title || "No title"}
-                        </div>
+                      <div className="text-sm text-gray-900 flex items-center">
+                        <FiBook className="mr-1 h-3 w-3 text-gray-400" />
+                        {lead.book_title || "No title"}
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {lead.author && `by ${lead.author}`}
-                      </div>
-                      {lead.publisher && (
-                        <div className="text-xs text-gray-400">
-                          {lead.publisher}
+                      {lead.author && (
+                        <div className="text-sm text-gray-500">
+                          by {lead.author}
                         </div>
                       )}
                     </td>
@@ -1727,93 +1774,21 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                         {lead.status || "New"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getRatingDisplay(lead)}
-                      {lead.transferred_to && activeTab !== "transferred" && (
-                        <span className="ml-2 text-xs text-gray-500">
-                          → {getTransferredToName(lead.transferred_to)}
-                        </span>
-                      )}
-                    </td>
-                    {activeTab === "transferred" && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="flex flex-col">
-                          <span className="text-xs text-gray-400">
-                            {lead.transferred_at
-                              ? new Date(
-                                  lead.transferred_at,
-                                ).toLocaleDateString()
-                              : "N/A"}
-                          </span>
-                        </div>
-                      </td>
-                    )}
-                    <td className="px-6 py-4">
-                      <div className="max-w-xs">
-                        {lead.comment ? (
-                          <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded-lg">
-                            <p className="line-clamp-2">{lead.comment}</p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              {new Date(lead.updated_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedLead(lead);
-                              setShowCommentModal(true);
-                            }}
-                            className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center"
-                          >
-                            <FiMessageSquare className="mr-1 h-3 w-3" />
-                            Add note
-                          </button>
-                        )}
-                      </div>
+                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                      {lead.comment || "No notes"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
-                        {activeTab === "my-leads" && (
-                          <>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedLead(lead);
-                                setShowRatingModal(true);
-                              }}
-                              className="text-indigo-600 hover:text-indigo-900 p-1 rounded-full hover:bg-indigo-50"
-                              title="Flag or Decline lead"
-                            >
-                              <FiStar className="h-4 w-4" />
-                            </button>
-                            {/* <button
-                              onClick={() => {
-                                setSelectedLead(lead);
-                                fetchAvailableAgents();
-                                setShowTransferModal(true);
-                              }}
-                              className="text-blue-600 hover:text-blue-900 p-1 rounded-full hover:bg-blue-50"
-                              title="Transfer to another agent"
-                            >
-                              <FiSend className="h-4 w-4" />
-                            </button> */}
-                            {showTransferButton && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedLead(lead);
-                                  fetchAvailableAgents();
-                                  setShowTransferModal(true);
-                                }}
-                                className="text-blue-600 hover:text-blue-900 p-1 rounded-full hover:bg-blue-50"
-                                title="Transfer to another agent"
-                              >
-                                <FiSend className="h-4 w-4" />
-                              </button>
-                            )}
-                          </>
-                        )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openLeadScriptModal(lead);
+                          }}
+                          className="text-green-600 hover:text-green-900 p-1 rounded-full hover:bg-green-50"
+                          title="Open scripts"
+                        >
+                          <FiPhone className="h-4 w-4" />
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1821,10 +1796,35 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                             setShowCommentModal(true);
                           }}
                           className="text-gray-600 hover:text-gray-900 p-1 rounded-full hover:bg-gray-50"
-                          title="Add comment"
+                          title="Comment"
                         >
                           <FiMessageSquare className="h-4 w-4" />
                         </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLead(lead);
+                            setShowRatingModal(true);
+                          }}
+                          className="text-indigo-600 hover:text-indigo-900 p-1 rounded-full hover:bg-indigo-50"
+                          title="Flag or decline"
+                        >
+                          <FiStar className="h-4 w-4" />
+                        </button>
+                        {showTransferButton && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLead(lead);
+                              fetchAvailableAgents();
+                              setShowTransferModal(true);
+                            }}
+                            className="text-cyan-600 hover:text-cyan-900 p-1 rounded-full hover:bg-cyan-50"
+                            title="Transfer"
+                          >
+                            <FiSend className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1834,95 +1834,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
           </table>
         </div>
 
-        {/* Bottom Pagination */}
-        {!isLoading && totalItems > 0 && (
-          <div className="px-6 py-4 bg-white border-t border-gray-200">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              itemsPerPage={itemsPerPage}
-              onItemsPerPageChange={handleItemsPerPageChange}
-              onFirst={goToFirstPage}
-              onPrev={goToPreviousPage}
-              onNext={goToNextPage}
-              onLast={goToLastPage}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">My Leads</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {
-                  leads.filter(
-                    (l) =>
-                      l.assigned_to &&
-                      (!l.rating || l.rating !== "Flagged") &&
-                      !l.transferred_to,
-                  ).length
-                }
-              </p>
-            </div>
-            <div className="p-3 bg-indigo-100 rounded-lg">
-              <FiUser className="h-6 w-6 text-indigo-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Flagged</p>
-              <p className="text-2xl font-semibold text-purple-600">
-                {leads.filter((l) => l.rating === "Flagged").length}
-              </p>
-              <p className="text-xs text-gray-400">Still assigned to you</p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <FiFlag className="h-6 w-6 text-purple-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Transferred</p>
-              <p className="text-2xl font-semibold text-blue-600">
-                {leads.filter((l) => l.transferred_to).length}
-              </p>
-              <p className="text-xs text-gray-400">Sent to other agents</p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <FiSend className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Declined</p>
-              <p className="text-2xl font-semibold text-red-600">
-                {
-                  leads.filter(
-                    (l) => l.status === "Incompleted" && !l.assigned_to,
-                  ).length
-                }
-              </p>
-              <p className="text-xs text-gray-400">Removed from your list</p>
-            </div>
-            <div className="p-3 bg-red-100 rounded-lg">
-              <FiThumbsDown className="h-6 w-6 text-red-600" />
-            </div>
-          </div>
-        </div>
+        
       </div>
     </div>
   );
