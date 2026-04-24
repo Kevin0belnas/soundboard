@@ -1,22 +1,22 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import {
-  FiUser,
-  FiMail,
-  FiPhone,
   FiBook,
-  FiUserCheck,
-  FiSearch,
+  FiCopy,
+  FiFlag,
+  FiMail,
+  FiMessageSquare,
+  FiPauseCircle,
+  FiPhone,
+  FiPlay,
   FiRefreshCw,
+  FiSearch,
+  FiSend,
   FiStar,
   FiThumbsDown,
   FiUserCheck,
   FiVolume2,
   FiX,
-  FiSend,
-  FiVolume2,
-  FiCopy,
-  FiPauseCircle,
 } from "react-icons/fi";
 import Pagination from "../../components/Pagination";
 
@@ -35,7 +35,7 @@ function parseScriptSections(content) {
       trimmed.length < 80 &&
       !trimmed.startsWith("•") &&
       !trimmed.startsWith("-") &&
-      !/[.!?,:,"]$/.test(trimmed) &&
+      !/[.!?,:"]$/.test(trimmed) &&
       /^[A-Z"]/.test(trimmed) &&
       !trimmed.includes("[PAUSE]") &&
       !/^(As\s+mentioned)/i.test(trimmed)
@@ -62,7 +62,6 @@ function parseScriptSections(content) {
     }
   }
 
-  // Push the last section
   if (currentSection) {
     sections.push({
       title: currentSection,
@@ -70,7 +69,6 @@ function parseScriptSections(content) {
     });
   }
 
-  // If no sections detected, treat whole content as one block
   if (sections.length === 0) {
     sections.push({ title: "Script", content: content.trim() });
   }
@@ -80,46 +78,43 @@ function parseScriptSections(content) {
 
 const STAGE_DIRECTION_PATTERNS = [
   /^\[PAUSE.*?\]/i,
-  /^Pause\.?(\s+Let them answer\.?)?(\s+Then transition\.?)?$/i,
+  /^Pause\.?/i,
   /^Let them answer\.?$/i,
-  /^Then transition\.?$/i,
   /^Wait for (response|answer|reply)\.?$/i,
   /^Transition\.?$/i,
-  /^Note:/i,
   /^Let them agree\.?$/i,
+  /^Note:/i,
+  /^Close$/i,
 ];
 
 function cleanTextForTTS(text) {
-  return text
+  return String(text || "")
     .split("\n")
     .filter((line) => {
       const t = line.trim();
       if (!t) return false;
-      return !STAGE_DIRECTION_PATTERNS.some((p) => p.test(t));
+      return !STAGE_DIRECTION_PATTERNS.some((pattern) => pattern.test(t));
     })
     .join("\n")
     .trim();
 }
 
-// Create axios instance with base URL
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const APP_BASE = API_BASE.replace(/\/api\/?$/, "");
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
-  headers: {
-    "Content-Type": "application/json",
-  },
+  baseURL: API_BASE,
+  headers: { "Content-Type": "application/json" },
 });
 
-// Add auth token to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
 export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
-  const [activeTab, setActiveTab] = useState("my-leads"); // "my-leads", "flagged", "declined", "transferred"
+  const [activeTab, setActiveTab] = useState("my-leads");
   const [leads, setLeads] = useState([]);
   const [filteredLeads, setFilteredLeads] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -145,16 +140,16 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const [availableAgents, setAvailableAgents] = useState([]);
   const [selectedTargetAgent, setSelectedTargetAgent] = useState("");
   const [transferReason, setTransferReason] = useState("");
-  const [loadingAgents, setLoadingAgents] = useState(false);
 
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [scripts, setScripts] = useState([]);
   const [loadingScripts, setLoadingScripts] = useState(false);
   const [selectedScript, setSelectedScript] = useState(null);
+  const [scriptSections, setScriptSections] = useState([]);
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
+  const [activeSectionTitle, setActiveSectionTitle] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [playingScriptId, setPlayingScriptId] = useState(null);
-  const [pausedId, setPausedId] = useState(null);
-  const [generatingAudio, setGeneratingAudio] = useState(false);
+
   const [openerName, setOpenerName] = useState("");
   const [managerName, setManagerName] = useState("");
   const [callManagerId, setCallManagerId] = useState("");
@@ -224,13 +219,8 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     );
   }, [searchQuery, leads]);
 
-  // Prevent body scroll when modal is open
   useEffect(() => {
-    if (showScriptModal) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
+    document.body.style.overflow = showScriptModal ? "hidden" : "unset";
     return () => {
       document.body.style.overflow = "unset";
     };
@@ -351,58 +341,66 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       );
     } catch (error) {
       console.error("Error fetching scripts:", error);
+      setScripts([]);
+      setSelectedScript(null);
     } finally {
       setLoadingScripts(false);
     }
   };
 
   const fetchLeads = async () => {
+    if (!userId) {
+      setLeads([]);
+      setFilteredLeads([]);
+      return;
+    }
+
     setIsLoading(true);
     try {
       let endpoint = "";
-
-      // Different endpoints based on tab
       if (activeTab === "my-leads") {
         endpoint = `/contacts/assigned-to/${userId}/my-leads/page/${currentPage}/limit/${itemsPerPage}`;
       } else if (activeTab === "flagged") {
         endpoint = `/contacts/assigned-to/${userId}/flagged/page/${currentPage}/limit/${itemsPerPage}`;
       } else if (activeTab === "declined") {
         endpoint = `/contacts/assigned-to/${userId}/declined/page/${currentPage}/limit/${itemsPerPage}`;
-      } else if (activeTab === "transferred") {
+      } else {
         endpoint = `/contacts/transferred-to/${userId}/page/${currentPage}/limit/${itemsPerPage}`;
       }
 
       if (statusFilter !== "all") {
-        endpoint += `?status=${statusFilter}`;
+        endpoint += `?status=${encodeURIComponent(statusFilter)}`;
       }
 
       const response = await api.get(endpoint);
-
-      if (response.data.success) {
-        setLeads(response.data.data);
-        setFilteredLeads(response.data.data);
-        setTotalPages(response.data.pagination.pages);
-        setTotalItems(response.data.pagination.total);
-      }
-    } catch (error) {
-      if (error.response?.status !== 500) {
+      if (response.data?.success) {
+        const data = response.data.data || [];
+        setLeads(data);
+        setFilteredLeads(data);
+        setTotalPages(response.data.pagination?.pages || 1);
+        setTotalItems(response.data.pagination?.total || 0);
       } else {
         setLeads([]);
         setFilteredLeads([]);
         setTotalPages(1);
         setTotalItems(0);
       }
+    } catch (error) {
+      console.error("Fetch leads error:", error);
+      setLeads([]);
+      setFilteredLeads([]);
+      setTotalPages(1);
+      setTotalItems(0);
     } finally {
       setIsLoading(false);
     }
   };
 
   const fetchAvailableAgents = async () => {
-    setLoadingAgents(true);
     try {
       const response = await api.get("/contacts/agents/available");
-      if (response.data.success) {
-        let agents = response.data.data;
+      if (response.data?.success) {
+        let agents = response.data.data || [];
         if (userRole === "opener") {
           agents = agents.filter(
             (a) => a.role === "closer" && String(a.id) !== String(userId),
@@ -412,13 +410,10 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
             (a) => a.role === "opener" && String(a.id) !== String(userId),
           );
         }
-
         setAvailableAgents(agents);
       }
     } catch (error) {
-      console.error("Error fetching agents:", error);
-    } finally {
-      setLoadingAgents(false);
+      console.error("Fetch agents error:", error);
     }
   };
 
@@ -468,14 +463,14 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     setLastPlayedCacheStatus({});
   };
 
-  const handleTransferLead = async () => {
-    if (!selectedLead || !selectedTargetAgent || !transferReason.trim()) {
-      showNotification(
-        "warning",
-        "Please select an agent and provide a reason",
-      );
-      return;
-    }
+  const playItemIntoLiveCall = useCallback(
+    async (item) => {
+      if (!liveCall?.callId || !selectedLead || !item) return;
+      const text = normalizeScriptForTts(item.content);
+      if (!text.trim()) {
+        showNotification("warning", "Selected sub-script has no playable text");
+        return;
+      }
 
       setIsInjectingLiveTts(true);
       setCurrentLiveItemId(item._id);
@@ -529,32 +524,30 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
       if (!cancelled) {
         setLiveTtsQueue((prev) => prev.slice(1));
       }
-    } catch (error) {
-      showNotification("error", "Failed to add comment", error);
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [liveCall, liveTtsQueue, isInjectingLiveTts, playItemIntoLiveCall]);
+
+  const handleStartCall = async () => {
+    if (!selectedLead || !selectedScript || !starterSection) {
+      showNotification("warning", "Select one script first");
+      return;
     }
-  };
 
-  const handleCopyScript = () => {
-    const textToCopy = replaceScriptPlaceholders(selectedScript.content);
+    const phone = sanitizePhoneNumber(extractPrimaryPhone(selectedLead.phone));
+    if (!phone) {
+      showNotification("error", "No valid phone number found");
+      return;
+    }
 
-    navigator.clipboard
-      .writeText(textToCopy)
-      .then(() => {
-        setCopied(true);
-        showNotification("success", "Script copied to clipboard!");
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch((err) => {
-        console.error("Failed to copy:", err);
-        showNotification("error", "Failed to copy script");
-      });
-  };
-
-  const stopAllAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.onended = null;
-      audioRef.current = null;
+    const text = normalizeScriptForTts(starterSection.content);
+    if (!text.trim()) {
+      showNotification("error", "Starter sub-script is empty");
+      return;
     }
 
     try {
@@ -679,10 +672,13 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     setActiveSectionIndex(sectionIndex);
     setGeneratingPreview(true);
 
-      try {
+    try {
+      const cacheKey = itemId;
+      let audioUrl = previewCacheRef.current[cacheKey] || null;
+      if (!audioUrl) {
         const response = await api.post("/scripts/generate-audio-temp", {
           scriptId: selectedScript._id,
-          sectionText: resolvedText,
+          sectionText: normalizeScriptForTts(section.content),
         });
 
         if (!response.data?.success) {
@@ -690,19 +686,9 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         }
         audioUrl = response.data.audioUrl.startsWith("http")
           ? response.data.audioUrl
-          : `${baseUrl}${response.data.audioUrl}`;
-        sectionBlobCache.current[cacheKey] = audioUrl;
-      } catch (err) {
-        console.error("Section audio error:", err);
-        showNotification("error", "Audio generation failed");
-        stopAllAudio();
-        return;
-      } finally {
-        setGeneratingAudio(false);
+          : `${APP_BASE}${response.data.audioUrl}`;
+        previewCacheRef.current[cacheKey] = audioUrl;
       }
-    }
-
-    if (!isPlayingRef.current) return;
 
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
@@ -813,141 +799,80 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
     setActiveSectionTitle(null);
   };
 
-  const resolvedManagerName =
-    managerName || (!selectedLead?.transferred_to ? openerName : "") || "";
+  const openLeadScriptModal = async (lead) => {
+    setSelectedLead(lead);
+    setShowScriptModal(true);
+    setCallManagerId("");
 
-  const replaceScriptPlaceholders = (content) => {
-    const currentUserName = localStorage.getItem("name") || "User";
-    return removeOpenerPlaceholder(content)
-      .replace(/\[Author Name\]/g, selectedLead?.name || "Author")
-      .replace(/\[Book Title\]/g, selectedLead?.book_title || "Book")
-      .replace(/\[Your Name\]/g, currentUserName)
-      .replace(/\[Manager Name\]/g, resolvedManagerName || "[Manager Name]")
-      .replace(
-        /\[Opener Name\]/g,
-        (!selectedLead?.transferred_to
-          ? openerAgents.find((a) => a.id === callManagerId)?.name
-          : openerName) || "[Opener Name]",
-      );
-  };
+    const token = localStorage.getItem("token");
+    const fetchName = async (id) => {
+      if (!id) return "";
+      try {
+        const res = await fetch(`${APP_BASE}/api/users/${id}/name`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return data.name || "";
+        }
+      } catch {}
+      return "";
+    };
 
-  const showNotification = (type, message) => {
-    setNotification({ show: true, type, message });
-    setTimeout(
-      () => setNotification({ show: false, type: "", message: "" }),
-      3000,
-    );
-  };
+    const [opener, manager] = await Promise.all([
+      fetchName(lead.assigned_to),
+      fetchName(lead.transferred_to),
+    ]);
 
-  // Pagination handlers
-  const goToFirstPage = () => setCurrentPage(1);
-  const goToLastPage = () => setCurrentPage(totalPages);
-  const goToPreviousPage = () =>
-    setCurrentPage((prev) => Math.max(1, prev - 1));
-  const goToNextPage = () =>
-    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+    setOpenerName(opener);
+    setManagerName(manager);
 
-  const handleItemsPerPageChange = (e) => {
-    setItemsPerPage(Number(e.target.value));
-    setCurrentPage(1);
+    if (!lead.transferred_to) {
+      try {
+        const res = await fetch(`${APP_BASE}/api/contacts/agents/available`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setOpenerAgents((data.data || []).filter((a) => a.role === "opener"));
+        }
+      } catch {}
+    }
+
+    await fetchScripts();
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case "New":
-        return "bg-green-100 text-green-800";
-      case "Contacted":
-        return "bg-blue-100 text-blue-800";
-      case "In Progress":
-        return "bg-yellow-100 text-yellow-800";
-      case "Closed":
-        return "bg-gray-100 text-gray-800";
-      case "Completed":
-        return "bg-purple-100 text-purple-800";
-      case "Incompleted":
-        return "bg-red-100 text-red-800";
-      case "Transferred":
-        return "bg-orange-100 text-orange-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getRatingDisplay = (lead) => {
-    if (lead.rating === "Flagged") {
-      return (
-        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-          <FiFlag className="h-3 w-3 mr-1" />
-          Flagged
-        </span>
-      );
-    } else if (lead.status === "Incompleted" && !lead.assigned_to) {
-      return (
-        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-red-100 text-red-800 border border-red-200">
-          <FiThumbsDown className="h-3 w-3 mr-1" />
-          Declined
-        </span>
-      );
-    } else if (lead.transferred_to) {
-      return (
-        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-          <FiSend className="h-3 w-3 mr-1" />
-          Transferred
-        </span>
-      );
-    }
-    return null;
-  };
-
-  const getTransferredToName = (agentId) => {
-    if (!agentId) return "Unknown";
-    const agent = availableAgents.find((a) => a.id === agentId);
-    return agent ? agent.name : `Agent ${agentId.substring(0, 8)}...`;
+    const map = {
+      New: "bg-green-100 text-green-800",
+      Contacted: "bg-blue-100 text-blue-800",
+      "In Progress": "bg-yellow-100 text-yellow-800",
+      Completed: "bg-purple-100 text-purple-800",
+      Closed: "bg-gray-100 text-gray-800",
+      Incompleted: "bg-red-100 text-red-800",
+      Transferred: "bg-orange-100 text-orange-800",
+    };
+    return map[status] || "bg-gray-100 text-gray-800";
   };
 
   const tabs = [
-    {
-      id: "my-leads",
-      label: "My Leads",
-      icon: FiUserCheck,
-      color: "indigo",
-      description: "Leads currently assigned to you",
-    },
-    {
-      id: "flagged",
-      label: "Flagged",
-      icon: FiFlag,
-      color: "purple",
-      description: "Flagged leads (still assigned to you)",
-    },
-    {
-      id: "transferred",
-      label: "Transferred to Me",
-      icon: FiSend,
-      color: "blue",
-      description: "Leads transferred/referred to you",
-    },
-    {
-      id: "declined",
-      label: "Declined",
-      icon: FiThumbsDown,
-      color: "red",
-      description: "Leads you declined (removed from your list)",
-    },
+    { id: "my-leads", label: "My Leads", icon: FiUserCheck },
+    { id: "flagged", label: "Flagged", icon: FiFlag },
+    { id: "transferred", label: "Transferred to Me", icon: FiSend },
+    { id: "declined", label: "Declined", icon: FiThumbsDown },
   ];
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Notification */}
+    <div className="space-y-6">
       {notification.show && (
         <div
-          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg ${
+          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${
             notification.type === "success"
               ? "bg-green-500"
               : notification.type === "error"
                 ? "bg-red-500"
                 : "bg-yellow-500"
-          } text-white`}
+          }`}
         >
           {notification.message}
         </div>
@@ -1028,9 +953,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
             <textarea
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
-              placeholder="Enter your comment or note..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[120px]"
-              autoFocus
+              className="w-full min-h-[120px] border border-gray-300 rounded-lg px-3 py-2"
             />
             <div className="flex justify-end gap-3 mt-4">
               <button
@@ -1050,7 +973,6 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         </div>
       )}
 
-      {/* Rating Modal */}
       {showRatingModal && selectedLead && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 max-w-md w-full">
@@ -1090,7 +1012,6 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         </div>
       )}
 
-      {/* Transfer Modal */}
       {showTransferModal && selectedLead && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 max-w-lg w-full">
@@ -1133,7 +1054,6 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         </div>
       )}
 
-      {/* Script Modal */}
       {showScriptModal && selectedLead && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3 sm:p-6">
           <div className="bg-white w-full max-w-7xl rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-[calc(100dvh-1.5rem)] flex flex-col">
@@ -1227,31 +1147,13 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                             </div>
                           </div>
                         </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Mobile script selector */}
-                <div className="lg:hidden border-b border-gray-200 p-3 flex-shrink-0">
-                  <select
-                    value={selectedScript?._id || ""}
-                    onChange={(e) => {
-                      const next = scripts.find(
-                        (s) => s._id === e.target.value,
                       );
-                      if (next) setSelectedScript(next);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {scripts.map((script) => (
-                      <option key={script._id} value={script._id}>
-                        {script.title}
-                      </option>
-                    ))}
-                  </select>
+                    })
+                  )}
                 </div>
+              </div>
 
+              <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
                 {selectedScript ? (
                   <>
                     <div className="px-4 sm:px-5 py-4 border-b border-gray-200 bg-white">
@@ -1393,9 +1295,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                                 : "bg-white border-gray-300 text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
                             }`}
                           >
-                            {sec.title.length > 22
-                              ? sec.title.slice(0, 22) + "…"
-                              : sec.title}
+                            {section.title || `Sub-script ${idx + 1}`}
                           </button>
                         ))}
                       </div>
@@ -1505,57 +1405,22 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                                         ? "Queue This Sub-script"
                                         : "Play This Sub-script in Call"}
                                   </button>
-                                </div>
-                              )}
+                                )}
+                              </div>
+                            </div>
+                            <div className="px-4 py-4 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap max-w-4xl">
+                              {section.content}
+                            </div>
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                          {replaceScriptPlaceholders(selectedScript.content)}
-                        </p>
-                      )}
-
-                      {selectedScript.audioStatus === "generating" && (
-                        <div className="p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
-                          Audio is being generated...
-                        </div>
-                      )}
-                      {selectedScript.audioStatus === "failed" && (
-                        <div className="p-4 bg-red-50 rounded-lg text-sm text-red-700">
-                          Audio generation failed: {selectedScript.audioError}
-                        </div>
-                      )}
+                        );
+                      })}
                     </div>
-
-                    {/* Progress Bar */}
-                    {scriptSections.length > 1 && (
-                      <div className="px-4 sm:px-5 py-2.5 border-t border-gray-200 bg-gray-50 flex items-center gap-3 flex-shrink-0">
-                        <div className="flex gap-1.5 items-center">
-                          {scriptSections.map((_, idx) => (
-                            <div
-                              key={idx}
-                              className={`h-1.5 rounded-full transition-all ${
-                                completedSections.includes(idx)
-                                  ? "w-4 bg-green-400"
-                                  : activeSectionIndex === idx
-                                    ? "w-4 bg-indigo-500"
-                                    : "w-1.5 bg-gray-300"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-xs text-gray-400 ml-auto">
-                          {completedSections.length} of {scriptSections.length}{" "}
-                          sections done
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                  </>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-gray-400">
                     <div className="text-center">
                       <FiBook className="h-10 w-10 mx-auto mb-2" />
-                      <p className="text-sm">Select a script to view</p>
+                      <p className="text-sm">Select a script</p>
                     </div>
                   </div>
                 )}
@@ -1565,20 +1430,12 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
         </div>
       )}
 
-      {/* Header with Tabs */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6" aria-label="Tabs">
+          <nav className="flex overflow-x-auto px-4 sm:px-6">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
-              const colorClasses = {
-                indigo: "border-indigo-500 text-indigo-600",
-                purple: "border-purple-500 text-purple-600",
-                blue: "border-blue-500 text-blue-600",
-                red: "border-red-500 text-red-600",
-              };
-
               return (
                 <button
                   key={tab.id}
@@ -1586,9 +1443,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                     setActiveTab(tab.id);
                     setCurrentPage(1);
                     setSearchQuery("");
-                    if (tab.id === "transferred") {
-                      fetchAvailableAgents();
-                    }
+                    if (tab.id === "transferred") fetchAvailableAgents();
                   }}
                   className={`inline-flex items-center px-1 py-4 border-b-2 font-medium text-sm ${
                     isActive
@@ -1596,24 +1451,17 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   }`}
                 >
-                  <Icon
-                    className={`mr-2 h-5 w-5 ${
-                      isActive
-                        ? `text-${tab.color}-500`
-                        : "text-gray-400 group-hover:text-gray-500"
-                    }`}
-                  />
-                  <span>{tab.label}</span>
+                  <Icon className="h-5 w-5 sm:mr-2" />
+                  <span className="hidden sm:inline">{tab.label}</span>
                 </button>
               );
             })}
           </nav>
         </div>
 
-        {/* Search and Filter Bar */}
-        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="relative max-w-md">
+        <div className="px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div className="relative flex-1 sm:max-w-md">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <FiSearch className="h-4 w-4 text-gray-400" />
               </div>
@@ -1622,7 +1470,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                 placeholder="Search leads..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm"
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -1640,7 +1488,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                   setStatusFilter(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
               >
                 <option value="all">All Status</option>
                 <option value="New">New</option>
@@ -1661,7 +1509,6 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
           </div>
         </div>
 
-        {/* Top Pagination */}
         {!isLoading && totalItems > 0 && (
           <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
             <Pagination
@@ -1669,18 +1516,20 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
               totalPages={totalPages}
               totalItems={totalItems}
               itemsPerPage={itemsPerPage}
-              onItemsPerPageChange={handleItemsPerPageChange}
-              onFirst={goToFirstPage}
-              onPrev={goToPreviousPage}
-              onNext={goToNextPage}
-              onLast={goToLastPage}
+              onItemsPerPageChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              onFirst={() => setCurrentPage(1)}
+              onPrev={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              onNext={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              onLast={() => setCurrentPage(totalPages)}
             />
           </div>
         )}
       </div>
 
-      {/* Leads Table */}
-      <div className="bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
+      <div className="hidden md:block bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -1701,7 +1550,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                 ))}
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
@@ -1722,22 +1571,9 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                     onClick={() => openLeadScriptModal(lead)}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div
-                          className={`flex-shrink-0 h-10 w-10 bg-gradient-to-br ${
-                            lead.rating === "Flagged"
-                              ? "from-purple-500 to-purple-600"
-                              : lead.status === "Incompleted" &&
-                                  !lead.assigned_to
-                                ? "from-red-500 to-red-600"
-                                : lead.transferred_to
-                                  ? "from-blue-500 to-blue-600"
-                                  : "from-indigo-500 to-purple-600"
-                          } rounded-full flex items-center justify-center`}
-                        >
-                          <span className="text-white font-medium text-sm">
-                            {lead.name?.charAt(0).toUpperCase() || "?"}
-                          </span>
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-medium">
+                          {lead.name?.charAt(0)?.toUpperCase() || "?"}
                         </div>
                         <div>
                           <div className="text-sm font-medium text-gray-900">
@@ -1833,8 +1669,6 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
             </tbody>
           </table>
         </div>
-
-        
       </div>
     </div>
   );
