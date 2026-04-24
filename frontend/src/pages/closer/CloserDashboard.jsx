@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
-import VoiceSoundboard from "../../components/shared/VoiceSoundBoard";
 import Leads from "./Leads";
 import {
   FiBook,
@@ -20,7 +19,6 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
   const [view, setView] = useState(() => {
     const path = window.location.pathname;
     if (path.includes("/closer/scripts")) return "scripts";
-    if (path.includes("/closer/voice-soundboard")) return "voice-soundboard";
     if (path.includes("/closer/leads")) return "leads";
 
     return initialView;
@@ -78,7 +76,6 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
   const navItems = [
     { id: "leads", label: "Leads", icon: FiBook },
     { id: "scripts", label: "Scripts", icon: FiBook },
-    { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
   ];
 
   const pageTitle =
@@ -86,9 +83,7 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
       ? "Script Management"
       : view === "logs"
         ? "Activity Logs"
-        : view === "leads"
-          ? "Lead Management"
-          : "Voice Soundboard";
+        :  "Lead Management"
 
   const pageSubtitle =
     view === "scripts"
@@ -331,8 +326,6 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
               onEditScript={handleOpenScriptForm}
             />
           )}
-
-          {view === "voice-soundboard" && <VoiceSoundboard />}
 
           {view === "leads" && <Leads />}s
         </main>

@@ -114,16 +114,7 @@ function App() {
               <AdminDashboard onLogout={handleLogout} initialView="agentlist" />
             </ProtectedRoute>
           }
-        />
-
-        <Route
-          path="/admin/voice-soundboard"
-          element={
-            <ProtectedRoute allowedRole="admin">
-              <AdminDashboard onLogout={handleLogout} initialView="voice-soundboard" />
-            </ProtectedRoute>
-          }
-        />
+        /> 
 
         <Route
           path="/admin/contacts"
@@ -142,16 +133,7 @@ function App() {
               <OpenerDashboard onLogout={handleLogout} />
             </ProtectedRoute>
           }
-        /> 
-
-        <Route
-          path="/opener/voice-soundboard"
-          element={
-            <ProtectedRoute allowedRole="opener">
-              <OpenerDashboard onLogout={handleLogout} initialView="voice-soundboard" />
-            </ProtectedRoute>
-          }
-        />
+        />  
 
         <Route
           path="/opener/leads"
@@ -190,16 +172,7 @@ function App() {
               <CloserDashboard onLogout={handleLogout} initialView="scripts" />
             </ProtectedRoute>
           }
-        />
-
-        <Route
-          path="/closer/voice-soundboard"
-          element={
-            <ProtectedRoute allowedRole="closer">
-              <CloserDashboard onLogout={handleLogout} initialView="voice-soundboard" />
-            </ProtectedRoute>
-          }
-        />
+        /> 
 
         <Route
           path="/closer/leads"

@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Routes, Route } from "react-router-dom"; 
 import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
-import VoiceSoundboard from "../../components/shared/VoiceSoundBoard";
 import Leads from "./Leads";
 import {
   FiBook,
@@ -90,28 +89,24 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
   const navItems = [
     { id: "leads", label: "My Leads", icon: FiUserCheck },
     { id: "scripts", label: "Scripts", icon: FiBook },
-    { id: "voice-soundboard", label: "Voice Soundboard", icon: FiVolume2 },
   ];
 
   // Get current view from URL path
   const getCurrentView = () => {
     const path = location.pathname;
     if (path.includes("/opener/scripts")) return "scripts";
-    if (path.includes("/opener/voice-soundboard")) return "voice-soundboard";
     if (path.includes("/opener/leads")) return "leads";
-    return initialView; // Fallback to initialView
+    return initialView;  
   };
 
   const currentView = getCurrentView();
 
   const pageTitle = 
-    currentView === "scripts" ? "Script Management" :
-    currentView === "voice-soundboard" ? "Voice Soundboard" :
+    currentView === "scripts" ? "Script Management" : 
     "My Leads";
 
   const pageSubtitle = 
     currentView === "scripts" ? "Create, edit, and manage your automation scripts" :
-    currentView === "voice-soundboard" ? "Click a script and let ElevenLabs speak it" :
     "View and manage leads assigned to you";
 
   return (
@@ -364,13 +359,7 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                 refreshKey={refreshKey}
               />
             </div>
-          )}
-          
-          {currentView === "voice-soundboard" && (
-            <div className="mx-4 sm:mx-6 lg:mx-8 mb-4 sm:mb-6 lg:mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-              <VoiceSoundboard />
-            </div>
-          )}
+          )} 
 
           {currentView === "leads" && <Leads />}
         </main>
