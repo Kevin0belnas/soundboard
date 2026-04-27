@@ -249,10 +249,58 @@ async function generateAsteriskTTS(text, fileBaseName, meta = {}) {
     ...fresh,
     fromCache: false,
   };
+} 
+
+async function generateTempAudio(text, fileBaseName, customVoiceId = null) {
+  const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
+  const voiceId = (customVoiceId || process.env.ELEVENLABS_VOICE_ID || "").trim();
+
+  if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
+  if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
+  if (!text || !String(text).trim()) throw new Error("TTS text is required");
+
+  const TEMP_DIR = path.join(__dirname, "..", "uploads", "temp");
+  fs.mkdirSync(TEMP_DIR, { recursive: true });
+
+  const fileName = `${sanitizeFileBase(fileBaseName || "audio")}_${Date.now()}.mp3`;
+  const filePath = path.join(TEMP_DIR, fileName);
+
+  console.log(`[TTS] voiceId: ${voiceId} | custom: ${customVoiceId || "none (using default)"}`);
+
+  const response = await axios({
+    method: "post",
+    url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    headers: {
+      "xi-api-key": apiKey,
+      "Content-Type": "application/json",
+      Accept: "audio/mpeg",
+    },
+    responseType: "arraybuffer",
+    timeout: 60000,
+    data: {
+      text: String(text).trim(),
+      model_id: "eleven_turbo_v2_5",
+      // voice_settings: { stability: 0.4, similarity_boost: 0.8 },
+      voice_settings: {
+    stability: 0.4,
+    similarity_boost: 0.8,
+    style: 0.6,
+    use_speaker_boost: true
+  }
+    },
+  });
+
+  fs.writeFileSync(filePath, response.data);
+
+  return {
+    audioUrl: `/temp/${fileName}`,
+    filePath,
+  };
 }
 
 module.exports = {
   generateAsteriskTTS,
+  generateTempAudio,
   sanitizeFileBase,
   buildTtsCacheKey,
 };

@@ -86,6 +86,7 @@ export default function AdminVoiceProfiles() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+
       if (res.ok) setAgents(data.data || []);
     } catch {
       showNotification("error", "Failed to load agents");
@@ -159,8 +160,7 @@ export default function AdminVoiceProfiles() {
         },
         body: JSON.stringify({
           sectionText: `Hi, my name is ${agent.name}. This is a preview of my cloned voice.`,
-          voiceId: agent.elevenLabsVoiceId,
-        }),
+          voiceId: agent.elevenlabsVoiceId,        }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Preview failed");
@@ -198,7 +198,9 @@ export default function AdminVoiceProfiles() {
         },
         body: JSON.stringify({ voiceName: agent.voiceName || agent.name }),
       });
+
       const data = await res.json();
+
       if (res.ok && data.success) {
         showNotification("success", `Cloning started for ${agent.name}`);
         fetchAgents();
@@ -299,7 +301,6 @@ export default function AdminVoiceProfiles() {
   return (
     <div className="p-4 sm:p-6 space-y-5">
 
-      {/* Notification */}
       {notification && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium max-w-sm ${
           notification.type === "success" ? "bg-green-500" : "bg-red-500"
@@ -308,7 +309,6 @@ export default function AdminVoiceProfiles() {
         </div>
       )}
 
-      {/* Filter pills */}
       <div className="flex flex-wrap items-center gap-2">
         {[
           { key: "all",            label: "All",            cls: "bg-gray-100 text-gray-700" },
@@ -350,7 +350,6 @@ export default function AdminVoiceProfiles() {
         </div>
       </div>
 
-      {/* Pending callout */}
       {counts.pending_review > 0 && (
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
           <FiClock className="w-4 h-4 text-amber-500 shrink-0" />
@@ -363,7 +362,6 @@ export default function AdminVoiceProfiles() {
         </div>
       )} 
 
-      {/* Table */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <FiMic className="w-10 h-10 mx-auto mb-2" />
@@ -391,19 +389,14 @@ export default function AdminVoiceProfiles() {
                 const isSamplePlaying  = playingId === agent._id && playingType === "sample";
                 const isPreviewPlaying = playingId === agent._id && playingType === "preview";
 
-                // which statuses allow cloning / retrying
                 const canClone = ["pending_review", "failed", "rejected", "none"].includes(agent.voiceStatus || "none");
-                // which statuses show preview
                 const canPreview = agent.voiceStatus === "cloned" && agent.elevenLabsVoiceId;
-                // which statuses show remove
                 const canRemove = ["cloned", "pending_review", "cloning", "rejected", "failed"].includes(agent.voiceStatus);
-                // which statuses show reject
                 const canReject = agent.voiceStatus === "pending_review";
 
                 return (
                   <tr key={agent._id} className="hover:bg-gray-50 transition">
 
-                    {/* Agent */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold shrink-0">
@@ -416,7 +409,6 @@ export default function AdminVoiceProfiles() {
                       </div>
                     </td>
 
-                    {/* Voice name */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <p className="text-sm text-gray-700">
                         {agent.voiceName || <span className="text-gray-300">—</span>}
@@ -428,7 +420,6 @@ export default function AdminVoiceProfiles() {
                       </span>
                     </td>
 
-                    {/* Status */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${status.bg} ${status.color}`}>
                         <StatusIcon className={`w-3 h-3 ${agent.voiceStatus === "cloning" ? "animate-spin" : ""}`} />
@@ -441,7 +432,6 @@ export default function AdminVoiceProfiles() {
                       )}
                     </td>
 
-                    {/* Sample playback */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       {agent.voiceSampleUrl ? (
                         <button
@@ -467,11 +457,9 @@ export default function AdminVoiceProfiles() {
                       )}
                     </td>
 
-                    {/* Actions */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2 flex-wrap">
 
-                        {/* Clone / Retry */}
                         {canClone && (
                           <button
                             onClick={() => handleClone(agent)}
@@ -488,7 +476,6 @@ export default function AdminVoiceProfiles() {
                           </button>
                         )}
 
-                        {/* Reject */}
                         {canReject && (
                           <button
                             onClick={() => handleReject(agent)}
@@ -500,7 +487,6 @@ export default function AdminVoiceProfiles() {
                           </button>
                         )}
 
-                        {/* Preview cloned voice */}
                         {canPreview && (
                           <button
                             onClick={() => handlePreviewClone(agent)}
@@ -522,7 +508,6 @@ export default function AdminVoiceProfiles() {
                           </button>
                         )}
 
-                        {/* Remove */}
                         {canRemove && (
                           <button
                             onClick={() => handleDelete(agent)}

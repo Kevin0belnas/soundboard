@@ -7,6 +7,7 @@ const Script = require("../models/Script");
 const Log = require("../models/Log");
 
 const { AUDIO_DIR, saveScriptAudioFile, generateTempAudio } = require("../services/ttsService");
+const elevenLabsVoiceId = process.env.ELEVENLABS_VOICE_ID;
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
 
@@ -294,19 +295,25 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
 // ---------------- GENERATE TEMPORARY PERSONALIZED AUDIO ----------------
 router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
   try {
-    const { sectionText, scriptId, voiceId } = req.body;
-
-    console.log('scriptId:', scriptId);
-    console.log("Received request to generate temporary audio with sectionText:", sectionText);
-    console.log('req.body:', req.body);
-
+    const { sectionText, scriptId, voiceId: requestVoiceId } = req.body;
 
     if (!sectionText) {
       return res.status(400).json({ error: "SectionText is required" });
     }
 
-    const result = await generateTempAudio(sectionText, scriptId || "audio", voiceId || null);
-    console.log('generateTempAudio result:', result);
+    // Use voiceId from request if provided, otherwise look up agent's cloned voice
+    let voiceId = requestVoiceId || null;
+    if (!voiceId && req.user?.userId) {
+      const User = require("../models/User");
+      const user = await User.findById(req.user.userId).select("elevenlabsVoiceId voiceStatus");
+      console.log(`[generate-audio-temp] user voiceStatus: ${user?.voiceStatus} | elevenlabsVoiceId: ${user?.elevenlabsVoiceId}`);
+      if (user?.voiceStatus === "cloned" && user?.elevenlabsVoiceId) {
+        voiceId = user.elevenlabsVoiceId;      
+      }
+    }
+    console.log(`[generate-audio-temp] final voiceId: ${voiceId || "default"}`);
+
+    const result = await generateTempAudio(sectionText, scriptId || "audio", voiceId);
 
     res.json({
       success: true,

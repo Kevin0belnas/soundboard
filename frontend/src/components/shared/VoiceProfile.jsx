@@ -28,7 +28,7 @@ const STATUS_CONFIG = {
     bg: "bg-amber-50",
     border: "border-amber-200",
     icon: FiClock,
-    label: "Sample submitted — waiting for admin to activate",
+    label: "Sample submitted - waiting for admin to activate",
   },
   cloning: {
     color: "text-blue-600",
@@ -49,14 +49,14 @@ const STATUS_CONFIG = {
     bg: "bg-orange-50",
     border: "border-orange-200",
     icon: FiAlertCircle,
-    label: "Sample rejected — please re-submit",
+    label: "Sample rejected - please re-submit",
   },
   failed: {
     color: "text-red-600",
     bg: "bg-red-50",
     border: "border-red-200",
     icon: FiAlertCircle,
-    label: "Cloning failed — please re-submit",
+    label: "Cloning failed - please re-submit",
   },
 };
 
@@ -201,7 +201,6 @@ export default function VoiceProfile() {
     setPlayingRecording(true);
   };
 
-  // File upload
   const handleFileSelect = (file) => {
     if (!file) return;
     const ext = file.name.split(".").pop().toLowerCase();
@@ -275,7 +274,6 @@ export default function VoiceProfile() {
     }
   };
 
-  // Preview
   const handlePreview = async () => {
     if (!previewText.trim() || !voiceId) return;
 
@@ -348,7 +346,6 @@ export default function VoiceProfile() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
-      {/* Status banner */}
       <div
         className={`rounded-xl border ${status.border} ${status.bg} p-3 flex items-start gap-3 -mt-6`}
       >
@@ -380,7 +377,6 @@ export default function VoiceProfile() {
         )}
       </div>
 
-      {/* Preview */}
       {voiceStatus === "cloned" && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
           <h3 className="text-sm font-semibold text-gray-800">
@@ -414,7 +410,6 @@ export default function VoiceProfile() {
         </div>
       )}
 
-      {/* Pending info */}
       {voiceStatus === "pending_review" && (
         <div className="bg-white rounded-xl border border-amber-200 p-5">
           <div className="flex gap-3">
@@ -432,7 +427,6 @@ export default function VoiceProfile() {
         </div>
       )}
 
-      {/* Upload/Record form (Shown when none, failed, or rejected) */}
       {(voiceStatus === "none" || voiceStatus === "failed" || voiceStatus === "rejected") && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {/* Tabs */}
@@ -460,7 +454,6 @@ export default function VoiceProfile() {
           </div>
 
           <div className="p-5 space-y-5">
-            {/* Voice name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Voice Name
@@ -474,7 +467,6 @@ export default function VoiceProfile() {
               />
             </div>
 
-            {/* Record tab */}
             {activeTab === "record" && (
               <div className="space-y-4">
                 <p className="text-xs text-gray-500">
@@ -482,7 +474,6 @@ export default function VoiceProfile() {
                   background noise.
                 </p>
 
-                {/* Recorder controls */}
                 <div
                   className={`rounded-xl border-2 p-6 text-center transition ${
                     recordingState === "recording"
@@ -579,7 +570,6 @@ export default function VoiceProfile() {
               </div>
             )}
 
-            {/* Upload tab */}
             {activeTab === "upload" && (
               <div className="space-y-4">
                 <p className="text-xs text-gray-500">
@@ -641,7 +631,6 @@ export default function VoiceProfile() {
               </div>
             )}
 
-            {/* Tips */}
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
               <p className="text-xs font-semibold text-blue-700 mb-1">
                 Tips for a good voice sample

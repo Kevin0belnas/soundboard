@@ -22,11 +22,12 @@ const authenticateToken = (req, res, next) => {
 };
 
 const requireAdmin = (req, res, next) => {
-  if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
+  if (req.user?.role !== "admin")
+    return res.status(403).json({ error: "Admin only" });
   next();
 };
 
-// Multer 
+// Multer middleware for handling multipart/form-data
 const VOICES_DIR = path.join(__dirname, "..", "uploads", "voices");
 fs.mkdirSync(VOICES_DIR, { recursive: true });
 
@@ -50,7 +51,7 @@ const upload = multer({
   },
 });
 
-// ElevenLabs helpers  
+// ElevenLabs helpers
 async function cloneVoiceWithElevenLabs(voiceName, sampleFiles) {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
   if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
@@ -58,12 +59,36 @@ async function cloneVoiceWithElevenLabs(voiceName, sampleFiles) {
   const form = new FormData();
   form.append("name", voiceName);
   form.append("remove_background_noise", "true");
+  form.append("has_isolated_audio", "true"); 
+  form.append("stability", 1); 
+  form.append("use_speaker_boost", "true"); 
+  form.append("similarity_boost", 1); 
+  form.append("style", 0); 
+  form.append("speed", 1); 
 
+  let filesAppended = 0;
   for (const file of sampleFiles) {
+    console.log(
+      `Checking sample file: ${file.path} — exists: ${fs.existsSync(file.path)}`,
+    );
     if (!fs.existsSync(file.path)) {
-      throw new Error(`Sample file not found: ${file.originalName}`);
+      throw new Error(
+        `Sample file not found on disk: ${file.path}. Agent may need to re-upload.`,
+      );
     }
-    form.append("files[]", fs.createReadStream(file.path), file.originalName);
+    form.append("files", fs.createReadStream(file.path), {
+      filename: file.originalName,
+      contentType: "audio/mpeg",
+    });
+    filesAppended++;
+  }
+
+  console.log(
+    `Sending ${filesAppended} file(s) to ElevenLabs for voice: ${voiceName}`,
+  );
+
+  if (filesAppended === 0) {
+    throw new Error("No valid sample files found to send to ElevenLabs");
   }
 
   const response = await axios.post(
@@ -75,10 +100,10 @@ async function cloneVoiceWithElevenLabs(voiceName, sampleFiles) {
         ...form.getHeaders(),
       },
       timeout: 60000,
-    }
+    },
   );
 
-  return response.data;  
+  return response.data;
 }
 
 async function generateSpeech(voiceId, text) {
@@ -98,19 +123,20 @@ async function generateSpeech(voiceId, text) {
       },
       responseType: "arraybuffer",
       timeout: 60000,
-    }
+    },
   );
 
-  return response.data; 
+  return response.data;
 }
 
 // Agent uploads their voice sample
 router.post("/upload", authenticateToken, (req, res, next) => {
-    // inject userId into params so multer filename uses it
     req.params.id = req.user.userId;
     next();
   },
+
   upload.array("files", 5),
+
   async (req, res) => {
     try {
       if (!req.files?.length) {
@@ -154,14 +180,14 @@ router.post("/upload", authenticateToken, (req, res, next) => {
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
-  }
+  },
 );
 
-// Admin gets all agents with their voice submission status
+// Gets all agents with their voice submission status
 router.get("/admin", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const users = await User.find({ role: { $ne: "admin" } }).select(
-      "name email role voiceStatus voiceName elevenLabsVoiceId voiceError voiceSampleUrl voiceSampleFiles"
+      "name email role voiceStatus voiceName elevenlabsVoiceId voiceError voiceSampleUrl voiceSampleFiles",
     );
     res.json({ success: true, data: users });
   } catch (err) {
@@ -169,73 +195,89 @@ router.get("/admin", authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
-// Admin triggers ElevenLabs cloning for an agent
+// Triggers ElevenLabs cloning for an agent
 router.post("/admin/:id/clone", authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    if (!user.voiceSampleFiles?.length) {
-      return res.status(400).json({ error: "No voice sample found for this agent" });
-    }
-
-    user.voiceStatus = "cloning";
-    user.voiceError = "";
-    await user.save();
-
-    res.json({
-      success: true,
-      message: "Cloning started",
-      voiceStatus: "cloning",
-    });
-
-    // Background clone
     try {
-      const voiceName = req.body.voiceName || user.voiceName || user.name;
-      const result = await cloneVoiceWithElevenLabs(voiceName, user.voiceSampleFiles);
+      const user = await User.findById(req.params.id);
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-      user.voiceStatus = "cloned";
-      user.elevenLabsVoiceId = result.voice_id;
-      user.voiceName = voiceName;
+      if (!user.voiceSampleFiles?.length) {
+        return res
+          .status(400)
+          .json({ error: "No voice sample found for this agent" });
+      }
+
+      user.voiceStatus = "cloning";
       user.voiceError = "";
       await user.save();
 
-      console.log(`Voice cloned for ${user.name}: ${result.voice_id}`);
-    } catch (cloneErr) {
-      console.error("Clone failed:", cloneErr.response?.data || cloneErr.message);
-      user.voiceStatus = "failed";
-      user.voiceError =
-        cloneErr.response?.data?.detail?.message ||
-        cloneErr.message ||
-        "Cloning failed";
-      await user.save();
+      res.json({
+        success: true,
+        message: "Cloning started",
+        voiceStatus: "cloning",
+      });
+
+      try {
+        const voiceName = req.body.voiceName || user.voiceName || user.name;
+        const result = await cloneVoiceWithElevenLabs(
+          voiceName,
+          user.voiceSampleFiles,
+        );
+
+        console.log("Elevenlabs clone result:", result);
+
+        const clonedVoiceId = result.voice_id || result.voiceId || result.id;
+
+        if (!clonedVoiceId) {
+          throw new Error(
+            `ElevenLabs clone succeeded but no voice_id returned: ${JSON.stringify(result)}`,
+          );
+        }
+
+        user.voiceStatus = "cloned";
+        user.elevenlabsVoiceId = clonedVoiceId;
+        user.voiceName = voiceName;
+        user.voiceError = "";
+        await user.save();
+
+        console.log(`Voice cloned for ${user.name}: ${clonedVoiceId}`);
+      } catch (cloneErr) {
+        console.error("Clone failed:", cloneErr.response?.data || cloneErr.message, );
+        user.voiceStatus = "failed";
+        user.voiceError =
+          cloneErr.response?.data?.detail?.message ||
+          cloneErr.message ||
+          "Cloning failed";
+        await user.save();
+      }
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+  },
+);
 
-// Admin rejects a submitted sample
+// Rejects a submitted sample
 router.patch("/admin/:id/reject", authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: "User not found" });
+    try {
+      const user = await User.findById(req.params.id);
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-    user.voiceStatus = "rejected";
-    user.voiceError = req.body.reason || "Sample rejected by admin";
-    await user.save();
+      user.voiceStatus = "rejected";
+      user.voiceError = req.body.reason || "Sample rejected by admin";
+      await user.save();
 
-    res.json({ success: true, message: "Sample rejected" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+      res.json({ success: true, message: "Sample rejected" });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
 
 // Agent gets their own cloned voice info
 router.get("/my-cloned", authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select(
-      "voiceStatus voiceName elevenLabsVoiceId voiceError voiceSampleUrl"
+      "voiceStatus voiceName elevenlabsVoiceId voiceError voiceSampleUrl",
     );
     if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -243,7 +285,7 @@ router.get("/my-cloned", authenticateToken, async (req, res) => {
       success: true,
       voiceStatus: user.voiceStatus || "none",
       voiceName: user.voiceName || "",
-      elevenLabsVoiceId: user.elevenLabsVoiceId || "",
+      elevenLabsVoiceId: user.elevenlabsVoiceId || "",
       voiceError: user.voiceError || "",
       voiceSampleUrl: user.voiceSampleUrl || "",
     });
@@ -257,12 +299,12 @@ router.post("/tts/generate", authenticateToken, async (req, res) => {
   try {
     const { text, voiceId } = req.body;
 
-    if (!text?.trim()) return res.status(400).json({ error: "Text is required" });
+    if (!text?.trim())
+      return res.status(400).json({ error: "Text is required" });
     if (!voiceId) return res.status(400).json({ error: "voiceId is required" });
 
     const mp3Bytes = await generateSpeech(voiceId, text);
 
-    // Save to temp dir and return URL
     const TEMP_DIR = path.join(__dirname, "..", "uploads", "temp");
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 
@@ -283,7 +325,7 @@ router.post("/tts/generate", authenticateToken, async (req, res) => {
   }
 });
 
-// Remove voice 
+// Remove voice
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     if (req.user.userId !== req.params.id && req.user.role !== "admin") {
@@ -293,14 +335,16 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Delete from ElevenLabs
     if (user.elevenLabsVoiceId) {
       const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
       if (apiKey) {
         await axios
-          .delete(`https://api.elevenlabs.io/v1/voices/${user.elevenLabsVoiceId}`, {
-            headers: { "xi-api-key": apiKey },
-          })
+          .delete(
+            `https://api.elevenlabs.io/v1/voices/${user.elevenLabsVoiceId}`,
+            {
+              headers: { "xi-api-key": apiKey },
+            },
+          )
           .catch(() => {});
       }
     }
@@ -327,125 +371,3 @@ router.delete("/:id", authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// const express = require("express");
-// const multer = require("multer");
-// const axios = require("axios");
-// const FormData = require("form-data");
-// const fs = require("fs");
-
-// const router = express.Router();
-// const upload = multer({ dest: "uploads/voices/" });
-
-// router.post("/clone", upload.array("files", 5), async (req, res) => {
-//   try {
-//     const { name } = req.body;
-
-//     if (!name || !req.files || req.files.length === 0) {
-//       return res.status(400).json({
-//         error: "Voice name and audio files are required",
-//       });
-//     }
-
-//     const form = new FormData();
-//     form.append("name", name);
-//     form.append("remove_background_noise", "true");
-
-//     req.files.forEach((file) => {
-//       form.append("files", fs.createReadStream(file.path), file.originalname);
-//     });
-
-//     const response = await axios.post(
-//       "https://api.elevenlabs.io/v1/voices/ivc",
-//       form,
-//       {
-//         headers: {
-//           "xi-api-key": process.env.ELEVENLABS_API_KEY,
-//           ...form.getHeaders(),
-//         },
-//       }
-//     );
-
-//     res.json({
-//       message: "Voice cloned successfully",
-//       voiceId: response.data.voice_id,
-//       data: response.data,
-//     });
-//   } catch (error) {
-//     console.error("ElevenLabs clone error:", error.response?.data || error.message);
-
-//     res.status(500).json({
-//       error: "Failed to clone voice",
-//       details: error.response?.data || error.message,
-//     });
-//   } finally {
-//     if (req.files) {
-//       req.files.forEach((file) => {
-//         fs.unlink(file.path, () => {});
-//       });
-//     }
-//   }
-// });
-
-// router.post("/tts", async (req, res) => {
-//   try {
-//     const { voiceId, text } = req.body;
-
-//     const response = await axios.post(
-//       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-//       {
-//         text,
-//         model_id: "eleven_multilingual_v2",
-//       },
-//       {
-//         headers: {
-//           "xi-api-key": process.env.ELEVENLABS_API_KEY,
-//           "Content-Type": "application/json",
-//         },
-//         responseType: "arraybuffer",
-//       }
-//     );
-
-//     res.setHeader("Content-Type", "audio/mpeg");
-//     res.send(response.data);
-//   } catch (error) {
-//     console.error("TTS error:", error.response?.data || error.message);
-
-//     res.status(500).json({
-//       error: "Failed to generate TTS",
-//     });
-//   }
-// });
-
-// module.exports = router;
