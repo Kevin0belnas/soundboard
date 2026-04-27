@@ -8,6 +8,7 @@ const SftpClient = require("ssh2-sftp-client");
 const TtsCache = require("../models/TtsCache");
 
 const execFileAsync = util.promisify(execFile);
+const AUDIO_DIR = path.join(__dirname, "..", "uploads", "audio");
 
 function sanitizeFileBase(fileBase = "tts") {
   return (
@@ -265,8 +266,6 @@ async function generateTempAudio(text, fileBaseName, customVoiceId = null) {
   const fileName = `${sanitizeFileBase(fileBaseName || "audio")}_${Date.now()}.mp3`;
   const filePath = path.join(TEMP_DIR, fileName);
 
-  console.log(`[TTS] voiceId: ${voiceId} | custom: ${customVoiceId || "none (using default)"}`);
-
   const response = await axios({
     method: "post",
     url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -280,13 +279,13 @@ async function generateTempAudio(text, fileBaseName, customVoiceId = null) {
     data: {
       text: String(text).trim(),
       model_id: "eleven_turbo_v2_5",
-      // voice_settings: { stability: 0.4, similarity_boost: 0.8 },
       voice_settings: {
-    stability: 0.4,
-    similarity_boost: 0.8,
-    style: 0.6,
-    use_speaker_boost: true
-  }
+        stability: 0.45,
+        similarity_boost: 0.85,
+        style: 0.65,
+        use_speaker_boost: true
+      },
+      speed: 0.9,
     },
   });
 
@@ -298,9 +297,62 @@ async function generateTempAudio(text, fileBaseName, customVoiceId = null) {
   };
 }
 
+async function saveScriptAudioFile(scriptDoc, oldAudioFileName = "") {
+  const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
+  const voiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
+
+  if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
+  if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
+
+  fs.mkdirSync(AUDIO_DIR, { recursive: true });
+
+  if (oldAudioFileName) {
+    const oldPath = path.join(AUDIO_DIR, oldAudioFileName);
+    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+  }
+
+  const fileName = `script_${scriptDoc._id}_${Date.now()}.mp3`;
+  const filePath = path.join(AUDIO_DIR, fileName);
+
+  const response = await axios({
+    method: "post",
+    url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    headers: {
+      "xi-api-key": apiKey,
+      "Content-Type": "application/json",
+      Accept: "audio/mpeg",
+    },
+    responseType: "arraybuffer",
+    timeout: 60000,
+    data: {
+      text: String(scriptDoc.content),
+      model_id: "eleven_multilingual_v2",
+      voice_settings: {
+        stability: 0.45,
+        similarity_boost: 0.85,
+        style: 0.65,
+        use_speaker_boost: true
+      },
+      speed: 0.9,
+    },
+  });
+
+  fs.writeFileSync(filePath, response.data);
+
+  scriptDoc.audioUrl = `/uploads/audio/${fileName}`;
+  scriptDoc.audioFileName = fileName;
+  scriptDoc.audioStatus = "ready";
+  scriptDoc.audioError = "";
+  await scriptDoc.save();
+
+  return { audioUrl: scriptDoc.audioUrl, fileName };
+}
+
 module.exports = {
+  AUDIO_DIR,
+  sanitizeFileBase,
   generateAsteriskTTS,
   generateTempAudio,
-  sanitizeFileBase,
+  saveScriptAudioFile,
   buildTtsCacheKey,
 };

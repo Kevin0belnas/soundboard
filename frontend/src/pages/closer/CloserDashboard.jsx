@@ -261,21 +261,7 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3">
-                {view !== "voice-soundboard" && (
-                  <div className="hidden md:flex items-center bg-gray-100 rounded-lg px-3 py-2">
-                    <FiSearch className="w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder={`Search ${view}...`}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="ml-2 bg-transparent border-none focus:outline-none text-sm w-48"
-                      aria-label={`Search ${view}`}
-                    />
-                  </div>
-                )}
-
+              <div className="flex items-center space-x-3">  
                 <button
                   onClick={handleRefresh}
                   className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"

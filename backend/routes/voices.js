@@ -59,12 +59,7 @@ async function cloneVoiceWithElevenLabs(voiceName, sampleFiles) {
   const form = new FormData();
   form.append("name", voiceName);
   form.append("remove_background_noise", "true");
-  form.append("has_isolated_audio", "true"); 
-  form.append("stability", 1); 
-  form.append("use_speaker_boost", "true"); 
-  form.append("similarity_boost", 1); 
-  form.append("style", 0); 
-  form.append("speed", 1); 
+  form.append("has_isolated_audio", "true");  
 
   let filesAppended = 0;
   for (const file of sampleFiles) {

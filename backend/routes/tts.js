@@ -57,11 +57,12 @@ router.post("/speak", async (req, res) => {
           text: cleanedText,
           model_id: "eleven_multilingual_v2",
           voice_settings: {
-    stability: 0.4,
-    similarity_boost: 0.8,
-    style: 0.6,
-    use_speaker_boost: true
-  }
+            stability: 0.45,
+            similarity_boost: 0.85,
+            style: 0.65,
+            use_speaker_boost: true
+          },
+          speed: 0.9,
         }),
       }
     );

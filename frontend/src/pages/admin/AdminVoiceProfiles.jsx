@@ -311,13 +311,13 @@ export default function AdminVoiceProfiles() {
 
       <div className="flex flex-wrap items-center gap-2">
         {[
-          { key: "all",            label: "All",            cls: "bg-gray-100 text-gray-700" },
+          { key: "all", label: "All", cls: "bg-gray-100 text-gray-700" },
           { key: "pending_review", label: "Pending Review", cls: "bg-amber-100 text-amber-700" },
-          { key: "cloning",        label: "Cloning",        cls: "bg-blue-100 text-blue-700" },
-          { key: "cloned",         label: "Cloned",         cls: "bg-green-100 text-green-700" },
-          { key: "rejected",       label: "Rejected",       cls: "bg-orange-100 text-orange-700" },
-          { key: "failed",         label: "Failed",         cls: "bg-red-100 text-red-700" },
-          { key: "none",           label: "No sample",      cls: "bg-gray-100 text-gray-400" },
+          { key: "cloning", label: "Cloning", cls: "bg-blue-100 text-blue-700" },
+          { key: "cloned", label: "Cloned", cls: "bg-green-100 text-green-700" },
+          { key: "rejected", label: "Rejected", cls: "bg-orange-100 text-orange-700" },
+          { key: "failed", label: "Failed", cls: "bg-red-100 text-red-700" },
+          { key: "none", label: "No sample", cls: "bg-gray-100 text-gray-400" },
         ].map(({ key, label, cls }) => (
           <button
             key={key}

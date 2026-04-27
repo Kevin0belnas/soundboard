@@ -272,7 +272,6 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
 
     try {
       await generateAndSaveScriptAudio(script, oldAudioFileName);
-      console.log(`Audio regenerated for script: ${script._id}`);
     } catch (audioError) {
       console.error("Audio regeneration failed:", audioError.message);
       script.audioStatus = "failed";
@@ -306,12 +305,10 @@ router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
     if (!voiceId && req.user?.userId) {
       const User = require("../models/User");
       const user = await User.findById(req.user.userId).select("elevenlabsVoiceId voiceStatus");
-      console.log(`[generate-audio-temp] user voiceStatus: ${user?.voiceStatus} | elevenlabsVoiceId: ${user?.elevenlabsVoiceId}`);
       if (user?.voiceStatus === "cloned" && user?.elevenlabsVoiceId) {
         voiceId = user.elevenlabsVoiceId;      
       }
     }
-    console.log(`[generate-audio-temp] final voiceId: ${voiceId || "default"}`);
 
     const result = await generateTempAudio(sectionText, scriptId || "audio", voiceId);
 

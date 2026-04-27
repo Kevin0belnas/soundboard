@@ -18,10 +18,7 @@ import {
 } from "react-icons/fi";
 import Pagination from "../Pagination";
 
-export default function ScriptList({
-  searchQuery: externalSearchQuery = "",
-  onEditScript,
-}) {
+export default function ScriptList({ searchQuery: externalSearchQuery = "", onEditScript }) {
   const [scripts, setScripts] = useState([]);
   const [filteredScripts, setFilteredScripts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,10 +65,7 @@ export default function ScriptList({
   const totalItems = filteredScripts.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedScripts = filteredScripts.slice(
-    startIndex,
-    startIndex + itemsPerPage,
-  );
+  const paginatedScripts = filteredScripts.slice(startIndex, startIndex + itemsPerPage);
 
   const fetchScripts = async () => {
     try {
