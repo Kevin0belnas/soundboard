@@ -283,20 +283,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
 
               {/* Actions */}
               <div className="flex items-center space-x-2">
-                {view !== "voice-soundboard" && (
-                  <div className="hidden md:flex items-center bg-gray-100 rounded-lg px-3 py-2">
-                    <FiSearch className="w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder={`Search ${view}...`}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="ml-2 bg-transparent border-none focus:outline-none text-sm w-48"
-                      aria-label={`Search ${view}`}
-                    />
-                  </div>
-                )}
-
                 <button
                   onClick={handleRefresh}
                   className="hidden sm:block p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
@@ -359,7 +345,6 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
                 onEditScript={handleOpenScriptForm}
               />
             )}
-            {view === "logs" && <LogList searchQuery={searchQuery} />}
             {view === "addagents" && (
               <AgentsList
                 key={agentsRefreshKey}
@@ -369,6 +354,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
             )}
             {view === "contacts" && <Contacts />}
             {view === "voice-profiles" && <AdminVoiceProfiles />}
+            {view === "logs" && <LogList searchQuery={searchQuery} />}
           </div>
         </main>
       </div>

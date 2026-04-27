@@ -251,23 +251,58 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
     }
   };
 
-  const handlePlayAudio = (script) => {
-    if (!script.audioUrl) return;
-
+  const handlePlayAudio = async (script) => {
+  // Stop if already playing
+  if (playingId === script._id) {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
-    }
-
-    if (playingId === script._id) {
-      setPlayingId(null);
       audioRef.current = null;
+    }
+    setPlayingId(null);
+    return;
+  }
+
+  // Stop any other playing audio
+  if (audioRef.current) {
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    audioRef.current = null;
+  }
+
+  if (!script.content?.trim()) {
+    setError("Script has no content to play.");
+    return;
+  }
+
+  setPlayingId(`${script._id}_loading`);  
+
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await fetch("http://localhost:5000/api/scripts/generate-audio-temp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        sectionText: script.content.trim(),
+        scriptId: script._id,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.success || !data.audioUrl) {
+      setError("Failed to generate audio with cloned voice.");
+      setPlayingId(null);
       return;
     }
 
-    const fullAudioUrl = script.audioUrl.startsWith("http")
-      ? script.audioUrl
-      : `http://localhost:5000${script.audioUrl}`;
+    const fullAudioUrl = data.audioUrl.startsWith("http")
+      ? data.audioUrl
+      : `http://localhost:5000${data.audioUrl}`;
 
     const audio = new Audio(fullAudioUrl);
     audioRef.current = audio;
@@ -283,17 +318,20 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
       audioRef.current = null;
     };
 
-    audio
-      .play()
-      .then(() => {
-        setPlayingId(script._id);
-      })
+    audio.play()
+      .then(() => setPlayingId(script._id))
       .catch((err) => {
         console.error("Audio play error:", err);
         setError("Failed to play script audio.");
         setPlayingId(null);
         audioRef.current = null;
       });
+
+    } catch (err) {
+      console.error("Audio generation error:", err);
+      setError("Failed to generate audio.");
+      setPlayingId(null);
+    }
   };
 
   const getTypeColor = (type) => {
@@ -689,18 +727,23 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
                             e.stopPropagation();
                             handlePlayAudio(script);
                           }}
+                            disabled={playingId === `${script._id}_loading`}
                           className="p-1.5 sm:p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
                           title={
-                            playingId === script._id
-                              ? "Stop audio"
-                              : "Play audio"
+                            playingId === `${script._id}_loading`
+                              ? "Generating audio..."
+                              : playingId === script._id
+                                ? "Stop audio"
+                                : "Play with cloned voice"
                           }
                         >
-                          {playingId === script._id ? (
-                            <FiPause className="w-4 h-4" />
-                          ) : (
-                            <FiPlay className="w-4 h-4" />
-                          )}
+                          {playingId === `${script._id}_loading` ? (
+                          <FiRefreshCw className="w-4 h-4 animate-spin" />
+                        ) : playingId === script._id ? (
+                          <FiPause className="w-4 h-4" />
+                        ) : (
+                          <FiPlay className="w-4 h-4" />
+                        )}
                         </button>
                       )}
 
