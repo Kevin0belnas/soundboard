@@ -5,8 +5,13 @@ const fs = require("fs");
 const path = require("path");
 const Script = require("../models/Script");
 const Log = require("../models/Log");
+const { createNotification } = require("../utils/notify");
 
-const { AUDIO_DIR, saveScriptAudioFile, generateTempAudio } = require("../services/ttsService");
+const {
+  AUDIO_DIR,
+  saveScriptAudioFile,
+  generateTempAudio,
+} = require("../services/ttsService");
 const elevenLabsVoiceId = process.env.ELEVENLABS_VOICE_ID;
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
@@ -51,7 +56,7 @@ const createLog = async (req, action, details) => {
 
 // ---------------- GET ALL SCRIPTS ----------------
 router.get("/", authenticateToken, async (req, res) => {
-  try {  
+  try {
     let query = {};
 
     if (req.user.role !== "admin") {
@@ -120,6 +125,22 @@ router.post("/", authenticateToken, async (req, res) => {
       script: savedScript,
     });
 
+    // Notify all users of new script
+    const User = require("../models/User");
+    const agents = await User.find({
+      role: { $in: ["opener", "closer", "admin"] },
+    });
+
+    for (const agent of agents) {
+      await createNotification(
+        agent._id,
+        "script_created",
+        `New script created: ${title}`,
+        "Script",
+        script._id,
+      );
+    }
+
     try {
       await generateAndSaveScriptAudio(savedScript);
       console.log(`Audio generated for script: ${savedScript._id}`);
@@ -171,7 +192,9 @@ router.put("/:id", authenticateToken, async (req, res) => {
         action: "update_script",
         message: "User attempted to update a script they did not create",
       });
-      return res.status(403).json({ error: "Only the creator or admin can edit this script" });
+      return res
+        .status(403)
+        .json({ error: "Only the creator or admin can edit this script" });
     }
 
     const oldValues = {
@@ -220,6 +243,22 @@ router.put("/:id", authenticateToken, async (req, res) => {
       script,
     });
 
+    // Notify all users of script update
+    const User = require("../models/User");
+    const agents = await User.find({
+      role: { $in: ["opener", "closer", "admin"] },
+    });
+
+    for (const agent of agents) {
+      await createNotification(
+        agent._id,
+        "script_updated",
+        `Script updated: ${title}`,
+        "Script",
+        script._id,
+      );
+    }
+
     if (!shouldRegenerate) return;
 
     try {
@@ -251,7 +290,9 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
       script.author.toString() !== req.user.userId &&
       req.user.role !== "admin"
     ) {
-      return res.status(403).json({ error: "Not authorized to regenerate this script audio" });
+      return res
+        .status(403)
+        .json({ error: "Not authorized to regenerate this script audio" });
     }
 
     const oldAudioFileName = script.audioFileName || "";
@@ -287,6 +328,14 @@ router.post("/:id/regenerate-audio", authenticateToken, async (req, res) => {
       action: "regenerate_audio",
     });
 
+    await createNotification(
+      req.body.targetAgentId,
+      "regenerate_audio_failed",
+      `Failed to regenerate audio for script: ${script.title}.`,
+      "Lead",
+      id,
+    );
+
     res.status(500).json({ error: error.message });
   }
 });
@@ -304,13 +353,20 @@ router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
     let voiceId = requestVoiceId || null;
     if (!voiceId && req.user?.userId) {
       const User = require("../models/User");
-      const user = await User.findById(req.user.userId).select("elevenlabsVoiceId voiceStatus");
+      const user = await User.findById(req.user.userId).select(
+        "elevenlabsVoiceId voiceStatus",
+      );
       if (user?.voiceStatus === "cloned" && user?.elevenlabsVoiceId) {
-        voiceId = user.elevenlabsVoiceId;      
+        voiceId = user.elevenlabsVoiceId;
       }
     }
 
-    const result = await generateTempAudio(sectionText, scriptId || "audio", voiceId);
+    const result = await generateTempAudio(
+      sectionText,
+      scriptId || "audio",
+      voiceId,
+      req.user?.userId,
+    );
 
     res.json({
       success: true,
@@ -323,6 +379,14 @@ router.post("/generate-audio-temp", authenticateToken, async (req, res) => {
       success: false,
       error: error.message || "Failed to generate audio",
     });
+
+    await createNotification(
+      req.body.targetAgentId,
+      "audio_generation_failed",
+      `Failed to generate audio for script section.`,
+      "Lead",
+      id,
+    );
   }
 });
 
@@ -346,11 +410,13 @@ router.delete("/:id", authenticateToken, async (req, res) => {
         action: "delete_script",
         message: "User attempted to delete a script they did not create",
       });
-      return res.status(403).json({ error: "Only the creator or admin can delete this script" });
+      return res
+        .status(403)
+        .json({ error: "Only the creator or admin can delete this script" });
     }
 
     if (script.audioFileName) {
-      const filePath = path.join(AUDIO_DIR, script.audioFileName); 
+      const filePath = path.join(AUDIO_DIR, script.audioFileName);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
@@ -360,7 +426,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       id: script._id,
       title: script.title,
       type: script.type,
-    }; 
+    };
 
     await Script.findByIdAndDelete(scriptId);
 
@@ -372,6 +438,20 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     });
 
     res.json({ message: "Script deleted successfully" });
+
+    // Notify admin of script deletion
+    const User = require("../models/User");
+    const agents = await User.find({ role: { $in: ["admin"] } });
+
+    for (const agent of agents) {
+      await createNotification(
+        agent._id,
+        "script_deleted",
+        `Script deleted: ${deletedScriptInfo.title}`,
+        "Script",
+        script._id,
+      );
+    }
   } catch (error) {
     console.error("Error deleting script:", error);
 

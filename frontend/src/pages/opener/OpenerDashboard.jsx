@@ -1,18 +1,18 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation, Routes, Route } from "react-router-dom"; 
+import { useNavigate, useLocation, Routes, Route } from "react-router-dom";
 import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
 import Leads from "./Leads";
 import VoiceProfile from "../../components/shared/VoiceProfile";
+import NotificationBell from "../../components/NotificationBell";
 import {
   FiBook,
   FiLogOut,
-  FiBell,
   FiMenu,
   FiX,
   FiChevronRight,
   FiSearch,
-  FiRefreshCw, 
+  FiRefreshCw,
   FiUserCheck,
   FiMic,
 } from "react-icons/fi";
@@ -87,8 +87,8 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
   const userInitial = userName.charAt(0).toUpperCase();
 
   const navItems = [
-    { id: "leads",          label: "My Leads",      icon: FiUserCheck },
-    { id: "scripts",        label: "Scripts",       icon: FiBook },
+    { id: "leads", label: "My Leads", icon: FiUserCheck },
+    { id: "scripts", label: "Scripts", icon: FiBook },
     { id: "voice-profiles", label: "Voice Profile", icon: FiMic },
   ];
 
@@ -103,15 +103,19 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
 
   const currentView = getCurrentView();
 
-  const pageTitle = 
-    currentView === "scripts"        ? "Script Management" :
-    currentView === "voice-profiles" ? "Voice Profile" :
-    "My Leads";
+  const pageTitle =
+    currentView === "scripts"
+      ? "Script Management"
+      : currentView === "voice-profiles"
+        ? "Voice Profile"
+        : "My Leads";
 
-  const pageSubtitle = 
-    currentView === "scripts"        ? "Create, edit, and manage your automation scripts" :
-    currentView === "voice-profiles" ? "Set up and manage your cloned voice" :
-    "View and manage leads assigned to you";
+  const pageSubtitle =
+    currentView === "scripts"
+      ? "Create, edit, and manage your automation scripts"
+      : currentView === "voice-profiles"
+        ? "Set up and manage your cloned voice"
+        : "View and manage leads assigned to you";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex">
@@ -212,9 +216,7 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                       <span className="text-sm font-medium flex-1 text-left">
                         {item.label}
                       </span>
-                      {isActive && (
-                        <FiChevronRight className="w-4 h-4" />
-                      )}
+                      {isActive && <FiChevronRight className="w-4 h-4" />}
                     </>
                   )}
                 </div>
@@ -273,7 +275,9 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                   <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                     {pageTitle}
                   </h1>
-                  <p className="text-xs sm:text-sm text-gray-500">{pageSubtitle}</p>
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    {pageSubtitle}
+                  </p>
                 </div>
               </div>
 
@@ -300,20 +304,19 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
                   aria-label="Refresh data"
                   disabled={isRefreshing}
                 >
-                  <FiRefreshCw className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`} />
+                  <FiRefreshCw
+                    className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`}
+                  />
                 </button>
-
-                {/* Notifications */}
+ 
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg relative"
+                  className="mr-6 rounded-lg relative"
                   aria-label="Notifications"
                 >
-                  <FiBell className="w-5 h-5" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                  <NotificationBell />
                 </button>
 
-                {/* Logout (Desktop) */}
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
@@ -358,13 +361,13 @@ export default function OpenerDashboard({ onLogout, initialView = "leads" }) {
           {/* Content area */}
           {currentView === "scripts" && (
             <div className="mx-4 sm:mx-6 lg:mx-8 mb-4 sm:mb-6 lg:mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-              <ScriptsView 
+              <ScriptsView
                 searchQuery={searchQuery}
                 onEditScript={handleOpenScriptForm}
                 refreshKey={refreshKey}
               />
             </div>
-          )} 
+          )}
 
           {currentView === "leads" && <Leads />}
           {currentView === "voice-profiles" && <VoiceProfile />}

@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Log = require("../models/Log"); // Import Log model
+const { createNotification } = require("../utils/notify");
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
 
@@ -141,6 +142,14 @@ router.post("/register", async (req, res) => {
     console.log("user data being saved:", user)
     
     await user.save();
+
+    await createNotification(
+      user._id.toString(),
+      "new_user_registered",
+      `Welcome to the platform, ${user.name}!`,
+      "User",
+      user._id.toString(),
+    );
     
     const token = jwt.sign(
       { userId: user._id, role: user.role, name: user.name },

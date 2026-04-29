@@ -75,6 +75,7 @@ async function startServer() {
     app.use("/api/contacts", require("./routes/contacts")); // New contacts routes
     app.use("/api/asterisk", require("./routes/asterisk"));
     app.use("/api/voices", require("./routes/voices"));
+    app.use("/api/notifications", require("./routes/notifications"));
     app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
     // Connect MongoDB

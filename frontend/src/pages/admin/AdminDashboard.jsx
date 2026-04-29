@@ -7,11 +7,11 @@ import AgentsList from "./AgentsList";
 import AddAgent from "./AddAgent";
 import Contacts from "./Contacts";
 import AdminVoiceProfiles from "./AdminVoiceProfiles";
+import NotificationBell from "../../components/NotificationBell";
 import {
   FiBook,
   FiClock,
   FiLogOut,
-  FiBell,
   FiMenu,
   FiX,
   FiChevronRight,
@@ -102,26 +102,34 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
   const userInitial = userName.charAt(0).toUpperCase();
 
   const navItems = [
-    { id: "scripts",        label: "Scripts",        icon: FiBook },
-    { id: "addagents",      label: "Add Agents",     icon: FiPlusCircle },
-    { id: "logs",           label: "Logs",           icon: FiClock },
-    { id: "contacts",       label: "Contacts",       icon: FiUserPlus },
+    { id: "scripts", label: "Scripts", icon: FiBook },
+    { id: "contacts", label: "Contacts", icon: FiUserPlus },
     { id: "voice-profiles", label: "Voice Profiles", icon: FiMic },
+    { id: "addagents", label: "Add Agents", icon: FiPlusCircle },
+    { id: "logs", label: "Logs", icon: FiClock },
   ];
 
   const pageTitle =
-    view === "scripts"        ? "Script Management"
-    : view === "logs"         ? "Activity Logs"
-    : view === "addagents"    ? "Add Agents"
-    : view === "voice-profiles" ? "Voice Profiles"
-    : "Contacts";
+    view === "scripts"
+      ? "Script Management"
+      : view === "logs"
+        ? "Activity Logs"
+        : view === "addagents"
+          ? "Add Agents"
+          : view === "voice-profiles"
+            ? "Voice Profiles"
+            : "Contacts";
 
   const pageSubtitle =
-    view === "scripts"          ? "Create, edit, and manage your automation scripts"
-    : view === "logs"           ? "Monitor and analyze system activity"
-    : view === "addagents"      ? "Manage and add agents to the system"
-    : view === "voice-profiles" ? "Clone and manage agent voice profiles"
-    : "View and manage all contacts";
+    view === "scripts"
+      ? "Create, edit, and manage your automation scripts"
+      : view === "logs"
+        ? "Monitor and analyze system activity"
+        : view === "addagents"
+          ? "Manage and add agents to the system"
+          : view === "voice-profiles"
+            ? "Clone and manage agent voice profiles"
+            : "View and manage all contacts";
 
   return (
     <div
@@ -285,7 +293,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
               <div className="flex items-center space-x-2">
                 <button
                   onClick={handleRefresh}
-                  className="hidden sm:block p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                  className="hidden sm:block p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition"
                   aria-label="Refresh data"
                   disabled={isRefreshing}
                 >
@@ -296,10 +304,10 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
 
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg relative"
+                  className="mr-6 rounded-lg relative"
                   aria-label="Notifications"
                 >
-                  <FiBell className="w-5 h-5" />
+                  <NotificationBell />
                 </button>
 
                 <button
@@ -326,6 +334,7 @@ export default function AdminDashboard({ onLogout, initialView = "scripts" }) {
                 <span className="font-medium">New Script</span>
               </button>
             )}
+            
             {view === "addagents" && (
               <button
                 onClick={() => handleOpenAgentForm()}

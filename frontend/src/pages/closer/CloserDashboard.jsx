@@ -4,11 +4,11 @@ import ScriptList from "../../components/shared/ScriptList";
 import ScriptForm from "../../components/shared/ScriptForm";
 import Leads from "./Leads";
 import VoiceProfile from "../../components/shared/VoiceProfile";
+import NotificationBell from "../../components/NotificationBell";
 import {
   FiBook,
   FiMic,
   FiLogOut,
-  FiBell,
   FiMenu,
   FiX,
   FiChevronRight,
@@ -20,7 +20,7 @@ import {
 export default function CloserDashboard({ onLogout, initialView = "leads" }) {
   const [view, setView] = useState(() => {
     const path = window.location.pathname;
-    if (path.includes("/closer/scripts")) return "scripts"; 
+    if (path.includes("/closer/scripts")) return "scripts";
     if (path.includes("/closer/leads")) return "leads";
     if (path.includes("/closer/voice-profiles")) return "voice-profiles";
     return initialView;
@@ -87,8 +87,8 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
       : view === "logs"
         ? "Activity Logs"
         : view === "voice-profiles"
-        ? "Voice Profiles"
-        : "Lead Management";
+          ? "Voice Profiles"
+          : "Lead Management";
 
   const pageSubtitle =
     view === "scripts"
@@ -96,8 +96,8 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
       : view === "logs"
         ? "Monitor and analyze system activity"
         : view === "voice-profiles"
-        ? "Manage your voice profiles and settings"
-        : "Manage your leads effectively";
+          ? "Manage your voice profiles and settings"
+          : "Manage your leads effectively";
 
   return (
     <div
@@ -261,7 +261,7 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3">  
+              <div className="flex items-center space-x-3">
                 <button
                   onClick={handleRefresh}
                   className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
@@ -275,13 +275,12 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
 
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg relative"
+                  className="mr-6 rounded-lg relative"
                   aria-label="Notifications"
                 >
-                  <FiBell className="w-5 h-5" />
+                  <NotificationBell />
                 </button>
 
-                {/* Logout (Desktop) */}
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
@@ -334,7 +333,7 @@ export default function CloserDashboard({ onLogout, initialView = "leads" }) {
                   aria-label={`Search ${view}`}
                 />
               </div>
-            )}  
+            )}
           </div>
 
           {view === "scripts" && (

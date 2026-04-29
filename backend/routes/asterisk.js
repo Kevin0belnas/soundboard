@@ -38,20 +38,19 @@ function normalizeObjectId(id) {
   return new mongoose.Types.ObjectId(value);
 }
 
-async function buildPlaybackFileFromText(text, prefix = "crm", meta = {}) {
+// userId is now accepted and forwarded to generateAsteriskTTS
+async function buildPlaybackFileFromText(text, prefix = "crm", meta = {}, userId = null) {
   const safePrefix = sanitizeFileBase(prefix || "crm");
   const fileBase = `${safePrefix}_${Date.now()}_${Math.random()
     .toString(36)
     .slice(2, 8)}`;
 
-  const ttsResult = await generateAsteriskTTS(text, fileBase, meta);
+  const ttsResult = await generateAsteriskTTS(text, fileBase, meta, userId);
 
   const playbackFile =
     typeof ttsResult === "string" ? ttsResult : ttsResult.playbackFile;
-
   const wavPath = typeof ttsResult === "string" ? null : ttsResult.wavPath;
-  const remotePath =
-    typeof ttsResult === "string" ? null : ttsResult.remotePath;
+  const remotePath = typeof ttsResult === "string" ? null : ttsResult.remotePath;
 
   return {
     playbackFile,
@@ -154,9 +153,7 @@ router.post("/map-device", async (req, res) => {
     }
 
     const cleanExtension = String(extension).trim();
-    const finalSipChannel = String(
-      sipChannel || `SIP/${cleanExtension}`
-    ).trim();
+    const finalSipChannel = String(sipChannel || `SIP/${cleanExtension}`).trim();
 
     const device = await AsteriskDevice.findOneAndUpdate(
       { userId: userObjectId },
@@ -191,8 +188,7 @@ router.post("/map-device", async (req, res) => {
 
 router.post("/call-with-tts", async (req, res) => {
   try {
-    const { leadId, phoneNumber, agentId, text, scriptId, scriptTitle } =
-      req.body;
+    const { leadId, phoneNumber, agentId, text, scriptId, scriptTitle } = req.body;
 
     if (!agentId || !phoneNumber || !text) {
       return res.status(400).json({
@@ -202,8 +198,8 @@ router.post("/call-with-tts", async (req, res) => {
     }
 
     const device = await getUserAsteriskDevice(agentId);
-
     const cleanedPhone = sanitizePhoneNumber(phoneNumber);
+
     if (!cleanedPhone) {
       return res.status(400).json({
         success: false,
@@ -218,10 +214,13 @@ router.post("/call-with-tts", async (req, res) => {
 
     const confId = `crm_${callId.replace(/[^a-zA-Z0-9_]/g, "")}`;
 
-    const starterTts = await buildPlaybackFileFromText(text, "crm_starter", {
-      sourceType: "starter",
-      sourceId: scriptId || "",
-    });
+    // Pass agentId so the cloned voice is resolved for this agent
+    const starterTts = await buildPlaybackFileFromText(
+      text,
+      "crm_starter",
+      { sourceType: "starter", sourceId: scriptId || "" },
+      agentId,
+    );
 
     await originateConferenceCall({
       callId,
@@ -270,11 +269,7 @@ router.post("/call-with-tts", async (req, res) => {
         const activeCall = activeCalls.get(callId);
         if (!activeCall || activeCall.ended) return;
 
-        // IMPORTANT: start listening BEFORE we originate the lead leg
-        const leadAnsweredPromise = waitForLeadAnswered({
-          callId,
-          timeoutMs: 45000,
-        });
+        const leadAnsweredPromise = waitForLeadAnswered({ callId, timeoutMs: 45000 });
 
         await originateLeadToConference({
           callId,
@@ -312,8 +307,7 @@ router.post("/call-with-tts", async (req, res) => {
 
     return res.json({
       success: true,
-      message:
-        "Call started. Starter TTS will play only after the lead answers.",
+      message: "Call started. Starter TTS will play only after the lead answers.",
       callId,
       confId,
       starterTtsFile: starterTts.playbackFile,
@@ -355,13 +349,12 @@ router.post("/play-tts-in-call", async (req, res) => {
 
     const safeScriptId = sanitizeFileBase(scriptId || "script");
 
+    // Use the agentId stored on the active call to resolve the cloned voice
     const generated = await buildPlaybackFileFromText(
       text,
       `crm_script_${safeScriptId}`,
-      {
-        sourceType: "subscript",
-        sourceId: scriptId || "",
-      }
+      { sourceType: "subscript", sourceId: scriptId || "" },
+      activeCall.agentId,
     );
 
     const queueItem = {
@@ -410,19 +403,13 @@ router.post("/hangup", async (req, res) => {
     const { callId } = req.body;
 
     if (!callId) {
-      return res.status(400).json({
-        success: false,
-        message: "callId is required",
-      });
+      return res.status(400).json({ success: false, message: "callId is required" });
     }
 
     const activeCall = activeCalls.get(callId);
 
     if (!activeCall) {
-      return res.status(404).json({
-        success: false,
-        message: "Call not found",
-      });
+      return res.status(404).json({ success: false, message: "Call not found" });
     }
 
     activeCall.ended = true;
@@ -430,14 +417,9 @@ router.post("/hangup", async (req, res) => {
     activeCall.status = "ended";
 
     const result = await hangupConference(activeCall.confId);
-
     activeCalls.delete(callId);
 
-    return res.json({
-      success: true,
-      message: "Call hangup requested",
-      data: result,
-    });
+    return res.json({ success: true, message: "Call hangup requested", data: result });
   } catch (error) {
     console.error("Hangup error:", error);
     return res.status(500).json({

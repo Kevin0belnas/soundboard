@@ -25,27 +25,36 @@ function sanitizeFileBase(fileBase = "tts") {
 function buildSettingsHash({ modelId, voiceSettings }) {
   return crypto
     .createHash("sha256")
-    .update(
-      JSON.stringify({
-        modelId,
-        voiceSettings,
-      })
-    )
+    .update(JSON.stringify({ modelId, voiceSettings }))
     .digest("hex");
 }
 
 function buildTtsCacheKey({ text, voiceId, modelId, voiceSettings }) {
   return crypto
     .createHash("sha256")
-    .update(
-      JSON.stringify({
-        text: String(text || "").trim(),
-        voiceId,
-        modelId,
-        voiceSettings,
-      })
-    )
+    .update(JSON.stringify({
+      text: String(text || "").trim(),
+      voiceId,
+      modelId,
+      voiceSettings,
+    }))
     .digest("hex");
+}
+
+async function resolveVoiceId(userId = null) {
+  const envVoiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
+
+  if (userId) {
+    const User = require("../models/User");
+    const user = await User.findById(userId).select("elevenlabsVoiceId voiceStatus");
+    if (user?.voiceStatus === "cloned" && user?.elevenlabsVoiceId) {
+      console.log("Using cloned voiceId for TTS:", user.elevenlabsVoiceId);
+      return user.elevenlabsVoiceId;
+    }
+  }
+
+  console.log("Using default voiceId for TTS:", envVoiceId);
+  return envVoiceId || null;
 }
 
 async function uploadToAsteriskServer(localPath, remoteFileName) {
@@ -55,8 +64,7 @@ async function uploadToAsteriskServer(localPath, remoteFileName) {
   const port = Number(process.env.ASTERISK_SSH_PORT || 22);
   const username = process.env.ASTERISK_SSH_USER;
   const password = process.env.ASTERISK_SSH_PASSWORD;
-  const remoteDir =
-    process.env.ASTERISK_REMOTE_SOUNDS_DIR || "/var/lib/asterisk/sounds/tts";
+  const remoteDir = process.env.ASTERISK_REMOTE_SOUNDS_DIR || "/var/lib/asterisk/sounds/tts";
 
   if (!host || !username || !password) {
     throw new Error(
@@ -75,26 +83,17 @@ async function uploadToAsteriskServer(localPath, remoteFileName) {
   const remotePath = `${remoteDir.replace(/\/+$/, "")}/${safeRemoteFileName}`;
 
   try {
-    await sftp.connect({
-      host,
-      port,
-      username,
-      password,
-    });
+    await sftp.connect({ host, port, username, password });
 
     const exists = await sftp.exists(remoteDir);
-    if (!exists) {
-      await sftp.mkdir(remoteDir, true);
-    }
+    if (!exists) await sftp.mkdir(remoteDir, true);
 
     await sftp.put(localPath, remotePath);
     return remotePath;
   } catch (error) {
     throw new Error(`SFTP upload failed: ${error.message}`);
   } finally {
-    try {
-      await sftp.end();
-    } catch (_) {}
+    try { await sftp.end(); } catch (_) {}
   }
 }
 
@@ -137,24 +136,17 @@ async function generateFreshTTS({
   fs.writeFileSync(mp3Path, response.data);
 
   await execFileAsync(ffmpegPath, [
-    "-y",
-    "-i",
-    mp3Path,
-    "-ar",
-    "8000",
-    "-ac",
-    "1",
-    "-c:a",
-    "pcm_s16le",
+    "-y", "-i", mp3Path,
+    "-ar", "8000",
+    "-ac", "1",
+    "-c:a", "pcm_s16le",
     wavPath,
   ]);
 
   const remoteFileName = `${safeFileBase}.wav`;
   const remotePath = await uploadToAsteriskServer(wavPath, remoteFileName);
 
-  try {
-    fs.unlinkSync(mp3Path);
-  } catch (_) {}
+  try { fs.unlinkSync(mp3Path); } catch (_) {}
 
   return {
     playbackFile: `tts/${safeFileBase}`,
@@ -163,43 +155,23 @@ async function generateFreshTTS({
   };
 }
 
-async function generateAsteriskTTS(text, fileBaseName, meta = {}) {
+async function generateAsteriskTTS(text, fileBaseName, meta = {}, userId = null) {
   const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
-  const voiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
+  const voiceId = await resolveVoiceId(userId);
+
   const modelId = "eleven_multilingual_v2";
-  const voiceSettings = {
-    stability: 0.4,
-    similarity_boost: 0.8,
-  };
+  const voiceSettings = { stability: 0.4, similarity_boost: 0.8 };
 
-  if (!apiKey) {
-    throw new Error("Missing ELEVENLABS_API_KEY");
-  }
-
-  if (!voiceId) {
-    throw new Error("Missing ELEVENLABS_VOICE_ID");
-  }
-
-  if (!text || !String(text).trim()) {
-    throw new Error("TTS text is required");
-  }
+  if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
+  if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
+  if (!text || !String(text).trim()) throw new Error("TTS text is required");
 
   const cleanText = String(text).trim();
 
-  const cacheKey = buildTtsCacheKey({
-    text: cleanText,
-    voiceId,
-    modelId,
-    voiceSettings,
-  });
-
-  const settingsHash = buildSettingsHash({
-    modelId,
-    voiceSettings,
-  });
+  const cacheKey = buildTtsCacheKey({ text: cleanText, voiceId, modelId, voiceSettings });
+  const settingsHash = buildSettingsHash({ modelId, voiceSettings });
 
   const existing = await TtsCache.findOne({ cacheKey }).lean();
-
   if (existing) {
     return {
       playbackFile: existing.playbackFile,
@@ -246,15 +218,17 @@ async function generateAsteriskTTS(text, fileBaseName, meta = {}) {
     throw error;
   }
 
-  return {
-    ...fresh,
-    fromCache: false,
-  };
-} 
+  return { ...fresh, fromCache: false };
+}
 
-async function generateTempAudio(text, fileBaseName, customVoiceId = null) {
+async function generateTempAudio(text, fileBaseName, customVoiceId = null, userId = null) {
   const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
-  const voiceId = (customVoiceId || process.env.ELEVENLABS_VOICE_ID || "").trim();
+
+  const voiceId = customVoiceId
+    ? customVoiceId.trim()
+    : await resolveVoiceId(userId);
+
+    console.log("Generating temp audio with voiceId:", voiceId, "for userId:", userId);
 
   if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
   if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
@@ -283,7 +257,7 @@ async function generateTempAudio(text, fileBaseName, customVoiceId = null) {
         stability: 0.45,
         similarity_boost: 0.85,
         style: 0.65,
-        use_speaker_boost: true
+        use_speaker_boost: true,
       },
       speed: 0.9,
     },
@@ -291,15 +265,12 @@ async function generateTempAudio(text, fileBaseName, customVoiceId = null) {
 
   fs.writeFileSync(filePath, response.data);
 
-  return {
-    audioUrl: `/temp/${fileName}`,
-    filePath,
-  };
+  return { audioUrl: `/temp/${fileName}`, filePath };
 }
 
-async function saveScriptAudioFile(scriptDoc, oldAudioFileName = "") {
+async function saveScriptAudioFile(scriptDoc, oldAudioFileName = "", userId = null) {
   const apiKey = (process.env.ELEVENLABS_API_KEY || "").trim();
-  const voiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
+  const voiceId = await resolveVoiceId(userId);
 
   if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
   if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
@@ -331,7 +302,7 @@ async function saveScriptAudioFile(scriptDoc, oldAudioFileName = "") {
         stability: 0.45,
         similarity_boost: 0.85,
         style: 0.65,
-        use_speaker_boost: true
+        use_speaker_boost: true,
       },
       speed: 0.9,
     },
@@ -351,6 +322,7 @@ async function saveScriptAudioFile(scriptDoc, oldAudioFileName = "") {
 module.exports = {
   AUDIO_DIR,
   sanitizeFileBase,
+  resolveVoiceId,
   generateAsteriskTTS,
   generateTempAudio,
   saveScriptAudioFile,

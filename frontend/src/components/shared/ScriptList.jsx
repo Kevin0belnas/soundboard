@@ -162,6 +162,10 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
   }, [externalSearchQuery]);
 
   const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this script?")) {
+      return;
+    }
+
     try {
       const token = localStorage.getItem("token");
 
@@ -777,41 +781,17 @@ export default function ScriptList({ searchQuery: externalSearchQuery = "", onEd
                       )}
 
                       {script.canDelete &&
-                        (deleteConfirm === script._id ? (
-                          <div className="flex items-center gap-1 bg-red-50 rounded-lg p-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(script._id);
-                              }}
-                              className="p-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
-                              title="Confirm delete"
-                            >
-                              <FiCheckCircle className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteConfirm(null);
-                              }}
-                              className="p-1 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-200 transition"
-                              title="Cancel"
-                            >
-                              <FiX className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setDeleteConfirm(script._id);
+                              handleDelete(script._id)
                             }}
                             className="p-1.5 sm:p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                             title="Delete script"
                           >
                             <FiTrash2 className="w-4 h-4" />
                           </button>
-                        ))}
+                        }
                     </div>
                   </div>
                 </div>

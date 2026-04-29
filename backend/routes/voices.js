@@ -7,6 +7,7 @@ const axios = require("axios");
 const FormData = require("form-data");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { createNotification } = require("../utils/notify");
 
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
 
@@ -172,6 +173,13 @@ router.post("/upload", authenticateToken, (req, res, next) => {
         message: "Voice sample submitted. Waiting for admin review.",
         voiceStatus: "pending_review",
       });
+
+      // Notify agent
+        await createNotification(
+          user._id.toString(),
+          "voice_clone_submitted",
+          `Your voice sample is waiting to be reviewed.`,
+        );
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -212,6 +220,13 @@ router.post("/admin/:id/clone", authenticateToken, requireAdmin, async (req, res
         voiceStatus: "cloning",
       });
 
+        // Notify agent
+        await createNotification(
+          user._id.toString(),
+          "voice_clone_approved",
+          `Your voice sample has been approved and is being cloned.`,
+        );
+
       try {
         const voiceName = req.body.voiceName || user.voiceName || user.name;
         const result = await cloneVoiceWithElevenLabs(
@@ -244,6 +259,13 @@ router.post("/admin/:id/clone", authenticateToken, requireAdmin, async (req, res
           cloneErr.message ||
           "Cloning failed";
         await user.save();
+
+          // Notify agent that cloning failed
+          await createNotification(
+            user._id.toString(),
+            "voice_clone_rejected",
+            `Voice cloning failed: ${user.voiceError}. Please contact support or resubmit your voice sample.`,
+          );
       }
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -262,6 +284,13 @@ router.patch("/admin/:id/reject", authenticateToken, requireAdmin, async (req, r
       await user.save();
 
       res.json({ success: true, message: "Sample rejected" });
+
+      // Notify agent
+      await createNotification(
+        user._id.toString(),
+        "voice_clone_rejected",
+        `Your voice sample has been rejected: ${user.voiceError}. Please resubmit.`,
+      );
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -360,6 +389,13 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     await user.save();
 
     res.json({ success: true, message: "Voice removed" });
+
+    // Notify agent
+        await createNotification(
+          user._id.toString(),
+          "voice_clone_removed",
+          `Your submitted voice has been removed.`,
+        );
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
