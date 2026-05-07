@@ -60,7 +60,7 @@ async function cloneVoiceWithElevenLabs(voiceName, sampleFiles) {
   const form = new FormData();
   form.append("name", voiceName);
   form.append("remove_background_noise", "true");
-  form.append("has_isolated_audio", "true");  
+  form.append("has_isolated_audio", "true");
 
   let filesAppended = 0;
   for (const file of sampleFiles) {
@@ -126,7 +126,10 @@ async function generateSpeech(voiceId, text) {
 }
 
 // Agent uploads their voice sample
-router.post("/upload", authenticateToken, (req, res, next) => {
+router.post(
+  "/upload",
+  authenticateToken,
+  (req, res, next) => {
     req.params.id = req.user.userId;
     next();
   },
@@ -175,11 +178,11 @@ router.post("/upload", authenticateToken, (req, res, next) => {
       });
 
       // Notify agent
-        await createNotification(
-          user._id.toString(),
-          "voice_clone_submitted",
-          `Your voice sample is waiting to be reviewed.`,
-        );
+      await createNotification(
+        user._id.toString(),
+        "voice_clone_submitted",
+        `Your voice sample is waiting to be reviewed.`,
+      );
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -199,7 +202,11 @@ router.get("/admin", authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // Triggers ElevenLabs cloning for an agent
-router.post("/admin/:id/clone", authenticateToken, requireAdmin, async (req, res) => {
+router.post(
+  "/admin/:id/clone",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
     try {
       const user = await User.findById(req.params.id);
       if (!user) return res.status(404).json({ error: "User not found" });
@@ -220,12 +227,12 @@ router.post("/admin/:id/clone", authenticateToken, requireAdmin, async (req, res
         voiceStatus: "cloning",
       });
 
-        // Notify agent
-        await createNotification(
-          user._id.toString(),
-          "voice_clone_approved",
-          `Your voice sample has been approved and is being cloned.`,
-        );
+      // Notify agent
+      await createNotification(
+        user._id.toString(),
+        "voice_clone_approved",
+        `Your voice sample has been approved and is being cloned.`,
+      );
 
       try {
         const voiceName = req.body.voiceName || user.voiceName || user.name;
@@ -252,7 +259,10 @@ router.post("/admin/:id/clone", authenticateToken, requireAdmin, async (req, res
 
         console.log(`Voice cloned for ${user.name}: ${clonedVoiceId}`);
       } catch (cloneErr) {
-        console.error("Clone failed:", cloneErr.response?.data || cloneErr.message, );
+        console.error(
+          "Clone failed:",
+          cloneErr.response?.data || cloneErr.message,
+        );
         user.voiceStatus = "failed";
         user.voiceError =
           cloneErr.response?.data?.detail?.message ||
@@ -260,12 +270,12 @@ router.post("/admin/:id/clone", authenticateToken, requireAdmin, async (req, res
           "Cloning failed";
         await user.save();
 
-          // Notify agent that cloning failed
-          await createNotification(
-            user._id.toString(),
-            "voice_clone_rejected",
-            `Voice cloning failed: ${user.voiceError}. Please contact support or resubmit your voice sample.`,
-          );
+        // Notify agent that cloning failed
+        await createNotification(
+          user._id.toString(),
+          "voice_clone_rejected",
+          `Voice cloning failed: ${user.voiceError}. Please contact support or resubmit your voice sample.`,
+        );
       }
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -274,7 +284,11 @@ router.post("/admin/:id/clone", authenticateToken, requireAdmin, async (req, res
 );
 
 // Rejects a submitted sample
-router.patch("/admin/:id/reject", authenticateToken, requireAdmin, async (req, res) => {
+router.patch(
+  "/admin/:id/reject",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
     try {
       const user = await User.findById(req.params.id);
       if (!user) return res.status(404).json({ error: "User not found" });
@@ -391,11 +405,11 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     res.json({ success: true, message: "Voice removed" });
 
     // Notify agent
-        await createNotification(
-          user._id.toString(),
-          "voice_clone_removed",
-          `Your submitted voice has been removed.`,
-        );
+    await createNotification(
+      user._id.toString(),
+      "voice_clone_removed",
+      `Your submitted voice has been removed.`,
+    );
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -41,6 +41,22 @@ function buildTtsCacheKey({ text, voiceId, modelId, voiceSettings }) {
     .digest("hex");
 }
 
+function prepareTtsText(text) {
+  const normalized = String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\t+/g, " ")
+    .split("\n")
+    .map((line) => line.trim().replace(/\s+/g, " "))
+    .join("\n")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([.!?])\s+(?=[A-Z0-9\[])/g, "$1\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return normalized;
+}
+
+// Used user cloned voice
 async function resolveVoiceId(userId = null) {
   const envVoiceId = (process.env.ELEVENLABS_VOICE_ID || "").trim();
 
@@ -127,7 +143,7 @@ async function generateFreshTTS({
     responseType: "arraybuffer",
     timeout: 60000,
     data: {
-      text: String(text),
+      text: prepareTtsText(text),
       model_id: modelId,
       voice_settings: voiceSettings,
     },
@@ -166,7 +182,7 @@ async function generateAsteriskTTS(text, fileBaseName, meta = {}, userId = null)
   if (!voiceId) throw new Error("Missing ELEVENLABS_VOICE_ID");
   if (!text || !String(text).trim()) throw new Error("TTS text is required");
 
-  const cleanText = String(text).trim();
+  const cleanText = prepareTtsText(text);
 
   const cacheKey = buildTtsCacheKey({ text: cleanText, voiceId, modelId, voiceSettings });
   const settingsHash = buildSettingsHash({ modelId, voiceSettings });

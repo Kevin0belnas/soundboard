@@ -17,6 +17,7 @@ import {
   FiUserCheck,
   FiVolume2,
   FiX,
+  FiChevronDown,
 } from "react-icons/fi";
 import Pagination from "../../components/Pagination";
 
@@ -148,6 +149,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
   const [scriptSections, setScriptSections] = useState([]);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [activeSectionTitle, setActiveSectionTitle] = useState(null);
+  const [scriptAccordionOpen, setScriptAccordionOpen] = useState(true);
   const [copied, setCopied] = useState(false);
 
   const [openerName, setOpenerName] = useState("");
@@ -1156,126 +1158,153 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
               <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
                 {selectedScript ? (
                   <>
-                    <div className="px-4 sm:px-5 py-4 border-b border-gray-200 bg-white">
-                      <div className="flex flex-col gap-3">
-                        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                    <div className="border-b border-gray-200 bg-white">
+                      <div className="px-4 sm:px-5 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <button
+                            onClick={() => setScriptAccordionOpen((p) => !p)}
+                            aria-expanded={scriptAccordionOpen}
+                            className="p-1.5 rounded-md hover:bg-gray-100"
+                          >
+                            <FiChevronDown
+                              className={`h-4 w-4 transform transition-all ${
+                                scriptAccordionOpen ? "rotate-0" : "-rotate-90"
+                              }`}
+                            />
+                          </button>
+
                           <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="text-sm font-semibold text-gray-900 truncate">
-                                {selectedScript.title}
-                              </h4>
-                              {starterSection && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-                                  starter sub-script:{" "}
-                                  {activeSectionTitle === null
-                                    ? starterSection.title
-                                    : activeSectionTitle}
-                                </span>
-                              )}
-                            </div>
+                            <h4 className="text-sm font-semibold text-gray-900 truncate">
+                              {selectedScript.title}
+                            </h4>
                             {selectedScript.author && (
                               <p className="text-xs text-gray-400 mt-1">
                                 Created by {selectedScript.author.name}
                               </p>
                             )}
                           </div>
-
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {canCallLead && (
-                              <button
-                                onClick={handleStartCall}
-                                disabled={
-                                  !selectedLead ||
-                                  !selectedScript ||
-                                  !starterSection ||
-                                  callingLeadId === selectedLead?.id
-                                }
-                                className="inline-flex items-center px-3 py-2 text-xs font-medium text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg disabled:opacity-50"
-                              >
-                                <FiPhone className="h-3.5 w-3.5 mr-1.5" />
-                                {callingLeadId === selectedLead?.id
-                                  ? "Calling..."
-                                  : "Call Lead + Starter Sub-script"}
-                              </button>
-                            )}
-
-                            {liveCall?.callId && (
-                              <button
-                                onClick={() => handlePlayInLiveCall(activeSection)}
-                                className="inline-flex items-center px-3 py-2 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg"
-                              >
-                                <FiSend className="h-3.5 w-3.5 mr-1.5" />
-                                {isInjectingLiveTts
-                                  ? "Queue Selected Sub-script"
-                                  : "Play Selected Sub-script in Call"}
-                              </button>
-                            )}
-
-                            <button
-                              onClick={() =>
-                                activeSection &&
-                                previewSection(
-                                  { content: activeSection.content },
-                                  activeSection.sectionIndex,
-                                )
-                              }
-                              className="inline-flex items-center px-3 py-2 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg"
-                            >
-                              {generatingPreview ? (
-                                <FiRefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                              ) : (
-                                <FiVolume2 className="h-3.5 w-3.5 mr-1.5" />
-                              )}
-                              {playingPreviewId === activeSection?._id
-                                ? "Stop Preview"
-                                : "Preview Selected Sub-script"}
-                            </button>
-
-                            <button
-                              onClick={handleCopyScript}
-                              className="inline-flex items-center px-3 py-2 text-xs font-medium text-indigo-700 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
-                            >
-                              <FiCopy className="h-3.5 w-3.5 mr-1.5" />
-                              {copied ? "Copied!" : "Copy Main Script"}
-                            </button>
-                          </div>
                         </div>
 
-                        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
-                            Closer Flow
-                          </p>
-                          <p className="text-sm text-indigo-900 mt-1">
-                            Choose one main script first. When you click call,
-                            only the starter sub-script of that chosen script
-                            will play first. After that, you can choose any one
-                            sub-script below and play it in the same call.
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          {lastStarterCacheStatus !== null && (
-                            <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                              Starter WAV:{" "}
-                              {lastStarterCacheStatus
-                                ? "using saved audio"
-                                : "newly generated"}
+                        <div className="flex items-center gap-2">
+                          {starterSection && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                              starter sub-script: {" "}
+                              {activeSectionTitle === null
+                                ? starterSection.title
+                                : activeSectionTitle}
                             </span>
                           )}
-                          {activeSection &&
-                            Object.prototype.hasOwnProperty.call(
-                              lastPlayedCacheStatus,
-                              activeSection._id,
-                            ) && (
-                              <span className="text-[11px] px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                                Selected sub-script WAV:{" "}
-                                {lastPlayedCacheStatus[activeSection._id]
-                                  ? "using saved audio"
-                                  : "newly generated"}
-                              </span>
-                            )}
+                          <button
+                            onClick={() => setScriptAccordionOpen((p) => !p)}
+                            className="text-xs text-gray-600 px-2 py-1 rounded hover:bg-gray-100"
+                          >
+                            {scriptAccordionOpen ? "Collapse" : "Expand"}
+                          </button>
                         </div>
                       </div>
+
+                      {scriptAccordionOpen && (
+                        <div className="px-4 sm:px-5 py-4">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex flex-col xl:flex-row xl:items-center xl:justify-end gap-3">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {canCallLead && (
+                                  <button
+                                    onClick={handleStartCall}
+                                    disabled={
+                                      !selectedLead ||
+                                      !selectedScript ||
+                                      !starterSection ||
+                                      callingLeadId === selectedLead?.id
+                                    }
+                                    className="inline-flex items-center px-3 py-2 text-xs font-medium text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg disabled:opacity-50"
+                                  >
+                                    <FiPhone className="h-3.5 w-3.5 mr-1.5" />
+                                    {callingLeadId === selectedLead?.id
+                                      ? "Calling..."
+                                      : "Call Lead + Starter Sub-script"}
+                                  </button>
+                                )}
+
+                                {liveCall?.callId && (
+                                  <button
+                                    onClick={() => handlePlayInLiveCall(activeSection)}
+                                    className="inline-flex items-center px-3 py-2 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg"
+                                  >
+                                    <FiSend className="h-3.5 w-3.5 mr-1.5" />
+                                    {isInjectingLiveTts
+                                      ? "Queue Selected Sub-script"
+                                      : "Play Selected Sub-script in Call"}
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() =>
+                                    activeSection &&
+                                    previewSection(
+                                      { content: activeSection.content },
+                                      activeSection.sectionIndex,
+                                    )
+                                  }
+                                  className="inline-flex items-center px-3 py-2 text-xs font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 rounded-lg"
+                                >
+                                  {generatingPreview ? (
+                                    <FiRefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                  ) : (
+                                    <FiVolume2 className="h-3.5 w-3.5 mr-1.5" />
+                                  )}
+                                  {playingPreviewId === activeSection?._id
+                                    ? "Stop Preview"
+                                    : "Preview Selected Sub-script"}
+                                </button>
+
+                                <button
+                                  onClick={handleCopyScript}
+                                  className="inline-flex items-center px-3 py-2 text-xs font-medium text-indigo-700 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
+                                >
+                                  <FiCopy className="h-3.5 w-3.5 mr-1.5" />
+                                  {copied ? "Copied!" : "Copy Main Script"}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                                Closer Flow
+                              </p>
+                              <p className="text-sm text-indigo-900 mt-1">
+                                Choose one main script first. When you click call,
+                                only the starter sub-script of that chosen script
+                                will play first. After that, you can choose any one
+                                sub-script below and play it in the same call.
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              {lastStarterCacheStatus !== null && (
+                                <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                  Starter WAV:{" "}
+                                  {lastStarterCacheStatus
+                                    ? "using saved audio"
+                                    : "newly generated"}
+                                </span>
+                              )}
+                              {activeSection &&
+                                Object.prototype.hasOwnProperty.call(
+                                  lastPlayedCacheStatus,
+                                  activeSection._id,
+                                ) && (
+                                  <span className="text-[11px] px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                                    Selected sub-script WAV:{" "}
+                                    {lastPlayedCacheStatus[activeSection._id]
+                                      ? "using saved audio"
+                                      : "newly generated"}
+                                  </span>
+                                )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="px-4 sm:px-5 py-3 border-b border-gray-200 bg-gray-50 overflow-x-auto">
@@ -1610,7 +1639,7 @@ export default function LeadsList({ scriptTypeFilter, showTransferButton }) {
                         {lead.status || "New"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs">
                       {lead.comment || "No notes"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
